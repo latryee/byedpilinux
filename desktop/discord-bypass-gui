@@ -167,9 +167,9 @@ class DiscordBypassApp(Gtk.Window):
 
         title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         lbl_title = Gtk.Label(xalign=0)
-        lbl_title.set_markup("<span class='title-label'>🎮 Discord Bypass</span>")
+        lbl_title.set_markup("<span class='title-label'>🎮 Discord &amp; Roblox Bypass</span>")
         lbl_sub = Gtk.Label(xalign=0)
-        lbl_sub.set_markup("<span class='subtitle-label'>Linux DPI Desenkronizasyon &amp; Erişim Servisi</span>")
+        lbl_sub.set_markup("<span class='subtitle-label'>Linux DPI Desenkronizasyon &amp; Erişim Servisi (Discord + Roblox)</span>")
         title_box.pack_start(lbl_title, False, False, 0)
         title_box.pack_start(lbl_sub, False, False, 0)
         header.pack_start(title_box, True, True, 0)
@@ -198,13 +198,16 @@ class DiscordBypassApp(Gtk.Window):
         c2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         c2.get_style_context().add_class("card")
         c2_title = Gtk.Label(xalign=0)
-        c2_title.set_markup("<span class='card-title'>AĞ &amp; DİSCORD SES (WEBRTC) DURUMU</span>")
+        c2_title.set_markup("<span class='card-title'>AĞ, SES &amp; ROBLOX DURUMU</span>")
         self.lbl_voice = Gtk.Label(xalign=0)
-        self.lbl_voice.set_markup("<span class='info-value'>🎙️ Ses (UDP): Kontrol ediliyor...</span>")
+        self.lbl_voice.set_markup("<span class='info-value'>🎙️ Discord Ses: Kontrol ediliyor...</span>")
+        self.lbl_roblox = Gtk.Label(xalign=0)
+        self.lbl_roblox.set_markup("<span class='info-value'>🧱 Roblox Erişimi: Kontrol ediliyor...</span>")
         self.lbl_traffic = Gtk.Label(xalign=0)
         self.lbl_traffic.set_markup("<span class='info-value'>🛡️ Güvenlik Duvarı: Trafik izleniyor...</span>")
         c2.pack_start(c2_title, False, False, 0)
         c2.pack_start(self.lbl_voice, False, False, 0)
+        c2.pack_start(self.lbl_roblox, False, False, 0)
         c2.pack_start(self.lbl_traffic, False, False, 0)
         content_box.pack_start(c2, False, False, 0)
 
@@ -286,6 +289,7 @@ class DiscordBypassApp(Gtk.Window):
                 strategy_name = "Bilinmiyor"
                 pkts_info = "0 paket"
                 voice_ok = "WebRTC socket reachable" in output
+                roblox_ok = "Roblox TCP (443)   : [OK]" in output
 
                 for line in output.splitlines():
                     if "Active Strategy" in line:
@@ -293,14 +297,14 @@ class DiscordBypassApp(Gtk.Window):
                     if "Firewall Rules" in line and "(" in line:
                         pkts_info = line[line.find("(")+1:line.find(")")]
 
-                GLib.idle_add(self.update_status_ui, is_active, is_verified, strategy_name, pkts_info, voice_ok)
+                GLib.idle_add(self.update_status_ui, is_active, is_verified, strategy_name, pkts_info, voice_ok, roblox_ok)
             except Exception as e:
-                GLib.idle_add(self.update_status_ui, False, False, f"Hata: {e}", "0 paket", False)
+                GLib.idle_add(self.update_status_ui, False, False, f"Hata: {e}", "0 paket", False, False)
 
         threading.Thread(target=worker, daemon=True).start()
         return True
 
-    def update_status_ui(self, is_active, is_verified, strategy_name, pkts_info, voice_ok):
+    def update_status_ui(self, is_active, is_verified, strategy_name, pkts_info, voice_ok, roblox_ok):
         if is_active and is_verified:
             self.lbl_status.set_markup("<span class='status-active'>🟢 Bağlantı Aktif &amp; Doğrulandı</span>")
             self.btn_service.set_label("🛑 Servisi Durdur")
@@ -319,6 +323,10 @@ class DiscordBypassApp(Gtk.Window):
         
         voice_str = "🟢 Hazır &amp; Erişilebilir (0 ms Ping)" if voice_ok else "🟡 Bağlantı Bekleniyor"
         self.lbl_voice.set_markup(f"<span class='info-value'>🎙️ <b>Discord Ses (WebRTC):</b> {voice_str}</span>")
+
+        roblox_str = "🟢 Erişilebilir (Web &amp; İstemci)" if roblox_ok else "🟡 Kontrol Ediliyor / Hazır"
+        self.lbl_roblox.set_markup(f"<span class='info-value'>🧱 <b>Roblox Erişimi:</b> {roblox_str}</span>")
+
         self.lbl_traffic.set_markup(f"<span class='info-value'>🛡️ <b>Güvenlik Duvarı:</b> {pkts_info} işlendi</span>")
 
     def run_command_in_background(self, title, cmd_args):

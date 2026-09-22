@@ -272,6 +272,14 @@ func cmdStatus() {
 		fmt.Printf("Discord Voice (UDP): \033[33m[WARN] %v\033[0m\n", err)
 	}
 
+	if connRoblox, err := d.DialContext(ctx, "tcp", "roblox.com:443"); err == nil {
+		robloxAddr := connRoblox.RemoteAddr().String()
+		connRoblox.Close()
+		fmt.Printf("Roblox TCP (443)   : \033[32m[OK] Connected to %s\033[0m\n", robloxAddr)
+	} else {
+		fmt.Printf("Roblox TCP (443)   : \033[33m[WARN] %v\033[0m\n", err)
+	}
+
 	if !serviceActive {
 		fmt.Println("\nTip: To activate the bypass, run: 'sudo discord-bypass start'")
 	}

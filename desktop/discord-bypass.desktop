@@ -1,19 +1,19 @@
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Discord Bypass
+Name=Discord & Roblox Bypass
 GenericName=DPI Circumvention Utility
-Comment=Linux DPI Circumvention & Connectivity Tool for Discord
-Name[tr]=Discord Bypass
-GenericName[tr]=DPI Aşma Aracı
-Comment[tr]=Discord Linux DPI Engelleme ve Bağlantı Aracı
+Comment=Linux DPI Circumvention & Connectivity Tool for Discord and Roblox
+Name[tr]=Discord & Roblox Bypass
+GenericName[tr]=DPI Aşma Aracı (Discord & Roblox)
+Comment[tr]=Discord ve Roblox Linux DPI Engelleme ve Bağlantı Aracı
 Icon=discord-bypass
-Exec=discord-bypass-gui
+Exec=sh -c 'if [ -x /usr/bin/discord-bypass-gui ]; then /usr/bin/discord-bypass-gui; elif [ -x /usr/local/bin/discord-bypass-gui ]; then /usr/local/bin/discord-bypass-gui; elif [ -x "$HOME/.local/bin/discord-bypass-gui" ]; then "$HOME/.local/bin/discord-bypass-gui"; elif [ -x "$HOME/Masaüstü/byedpilinux/desktop/discord-bypass-gui" ]; then "$HOME/Masaüstü/byedpilinux/desktop/discord-bypass-gui"; else discord-bypass notify-status; fi'
 Terminal=false
-Categories=Network;Security;Utility;
-Keywords=Discord;DPI;Bypass;Zapret;Network;Turkey;VPN;Proxy;
+Categories=Network;Utility;
+Keywords=Discord;Roblox;DPI;Bypass;Zapret;Network;Turkey;VPN;Proxy;Sober;Vinegar;
 StartupNotify=false
-Actions=Diagnose;Tune;Status;
+Actions=Status;Diagnose;Tune;
 
 [Desktop Action Status]
 Name=Show Status Notification
@@ -23,9 +23,9 @@ Exec=discord-bypass notify-status
 [Desktop Action Diagnose]
 Name=Run Deep Diagnostic
 Name[tr]=Derin Ağ Teşhisini Başlat
-Exec=x-terminal-emulator -e discord-bypass diagnose
+Exec=sh -c 'x-terminal-emulator -e discord-bypass diagnose || discord-bypass notify-status'
 
 [Desktop Action Tune]
 Name=Run Automatic Strategy Tuner
 Name[tr]=Otomatik Strateji Bulucuyu Başlat
-Exec=x-terminal-emulator -e sudo discord-bypass tune
+Exec=sh -c 'pkexec discord-bypass tune || x-terminal-emulator -e sudo discord-bypass tune'

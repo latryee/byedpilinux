@@ -2,10 +2,11 @@
 
 # 🎮 discord-bypass
 
-**Türkiye için Optimize Edilmiş, Sıfır Gecikmeli (0 ms Ping) Linux Discord Erişim Aracı**
+**Türkiye için Optimize Edilmiş, Sıfır Gecikmeli (0 ms Ping) Linux Discord & Roblox Erişim Aracı**
 
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://kernel.org/)
+[![Desteklenenler](https://img.shields.io/badge/Destek-Discord%20%2B%20Roblox-5865F2?style=for-the-badge)](#-genel-bakış)
 [![Ping Artışı](https://img.shields.io/badge/Ping%20Art%C4%B1%C5%9F%C4%B1-0%20ms-brightgreen?style=for-the-badge)](#-neden-vpn-değil-vpn-vs-discord-bypass)
 [![Gizlilik](https://img.shields.io/badge/Gizlilik-%25100%20Yerel-blue?style=for-the-badge)](#-güvenlik-ve-sıfır-patlama-yarıçapı-zero-blast-radius)
 [![TR ISS Uyumluluğu](https://img.shields.io/badge/T%C3%BCrkiye%20ISS-Do%C4%9Fruland%C4%B1-success?style=for-the-badge)](#-türkiye-iss-uyumluluk-tablosu)
@@ -21,9 +22,13 @@
 
 ## 📌 Genel Bakış
 
-**discord-bypass**, Türkiye'deki internet servis sağlayıcılarının (Turkcell Superonline, Türk Telekom, TurkNet, Vodafone, Kablonet) Discord üzerindeki **DNS zehirlemesi** ve **SNI/DPI (Derin Paket İnceleme)** engellemelerini aşmak için özel olarak tasarlanmış, Linux çekirdeğiyle tam uyumlu, açık kaynaklı bir ağ servisidir.
+**discord-bypass**, Türkiye'deki internet servis sağlayıcılarının (Turkcell Superonline, Türk Telekom, TurkNet, Vodafone, Kablonet) **Discord** ve **Roblox** üzerindeki **DNS zehirlemesi** ve **SNI/DPI (Derin Paket İnceleme)** engellemelerini aşmak için tasarlanmış, Linux çekirdeğiyle tam uyumlu açık kaynaklı bir ağ servisidir.
 
-Tüm internetinizi yavaşlatan veya oyun içi pinginizi fırlatan hantal VPN'lerin aksine, **discord-bypass** yalnızca Discord trafiğini yerel olarak ayrıştırır ve optimize eder; diğer tüm internet trafiğiniz (oyunlar, tarayıcı, bankacılık) doğrudan ve kendi hızınızda akmaya devam eder.
+### Desteklenen Servisler:
+- 🎧 **Discord:** Masaüstü İstemcisi (.deb, Flatpak, Snap), Web İstemcisi, Gateway WebSocket, CDN Medyası ve **WebRTC Ses Kanalları** (0 ms ek ping).
+- 🧱 **Roblox:** Web Sitesi (`roblox.com`), API'ler, Varlık/Oyun İndirme Sunucuları (`setup.rbxcdn.com`), ve Linux çalıştırıcıları (**Sober**, **Vinegar**, **Wine/Proton**).
+
+Tüm internetinizi yavaşlatan veya oyun içi pinginizi fırlatan hantal VPN'lerin aksine, **discord-bypass** yalnızca Discord ve Roblox trafiğini yerel olarak ayrıştırır ve optimize eder; diğer tüm internet trafiğiniz (oyunlar, tarayıcı, bankacılık) doğrudan ve kendi hızınızda akmaya devam eder.
 
 ---
 
@@ -32,11 +37,11 @@ Tüm internetinizi yavaşlatan veya oyun içi pinginizi fırlatan hantal VPN'ler
 | Karşılaştırma Kriteri | Geleneksel VPN | `discord-bypass` |
 | :--- | :---: | :---: |
 | **Oyun İçi Ping Artışı** | ❌ **+40 - 150 ms** (Ciddi gecikme) | 🟢 **0 ms** (Oyun trafiği doğrudan gider) |
-| **Discord Ses & Yayın Kalitesi** | ⚠️ VPN sunucusunun yoğunluğuna bağlı | 🟢 **İnternetinizin %100 tam bant genişliği** |
+| **Discord Ses & Roblox Hızı** | ⚠️ VPN sunucusunun yoğunluğuna bağlı | 🟢 **İnternetinizin %100 tam bant genişliği** |
 | **Sistem Kaynak Tüketimi** | ⚠️ Yüksek CPU / Sürekli tünel şifrelemesi | 🟢 **< 15 MB RAM** (Hafif Go Daemon) |
 | **Gizlilik & Veri Güvenliği** | ❌ Tüm veriniz üçüncü taraf sunucudan geçer | 🟢 **%100 Yerel** (Harici sunucu/tünel yoktur) |
 | **Bankacılık & Yerel Siteler** | ❌ Güvenlik uyarısı veya erişim engeli | 🟢 **Sorunsuz** (Orijinal IP'niz korunur) |
-| **Kullanım Kolaylığı** | ⚠️ Her açılışta elle bağlanma gerektirir | 🟢 **systemd** ile arka planda sessizce çalışır |
+| **Masaüstü Kullanımı** | ⚠️ Her açılışta elle bağlanma gerektirir | 🟢 **Masaüstü Kontrol Paneli &amp; systemd** |
 
 ---
 
@@ -51,7 +56,7 @@ curl -fsSL https://raw.githubusercontent.com/latryee/byedpilinux/main/install.sh
 Bu tek komut:
 1. Dağıtımınızı (`Ubuntu`, `Debian`, `Zorin`, `Linux Mint`, `Fedora`, `Arch`) otomatik tanır.
 2. Gerekli hafif bağımlılıkları (`nftables`, `libnetfilter-queue1`) yapılandırır.
-3. Servisi kurar ve aktif eder.
+3. Servisi kurar, aktif eder ve **Masaüstünüze tıklanabilir kısayolu** yerleştirir.
 4. Ağınızı otomatik test ederek (`tune`) en uygun çalışma stratejisini belirler.
 
 ---
@@ -78,17 +83,6 @@ makepkg -si
 ```
 </details>
 
-<details>
-<summary><b>🛠️ Kaynak Koddan Manuel Derleme (Tüm Dağıtımlar)</b></summary>
-
-```bash
-git clone https://github.com/latryee/byedpilinux.git
-cd byedpilinux
-make build
-sudo ./install.sh
-```
-</details>
-
 ---
 
 ## 📶 Türkiye ISS Uyumluluk Tablosu
@@ -106,14 +100,35 @@ Aşağıdaki stratejiler Türkiye'deki gerçek hatlar üzerinde canlı olarak te
 
 ---
 
-## 🛠️ Temel Komutlar ve Kullanım
+## 💻 Masaüstü Kontrol Paneli (GUI)
+
+Terminal kullanmak istemeyen kullanıcılar ve oyuncular için **Discord temalı, karanlık modda çalışan modern bir Grafiksel Kontrol Paneli** (`discord-bypass-gui`) sunulmaktadır:
+
+- **Masaüstünden veya Menüden Tek Tık:** Kurulum yapıldığında masaüstünüze ve uygulama menünüze (**Uygulamalar -> İnternet -> Discord & Roblox Bypass**) kısayol eklenir. Çift tıkladığınızda doğrudan kontrol merkezi açılır.
+- **Canlı Görsel Durum:**
+  - 🟢 **Bağlantı & Strateji:** Aktif ve doğrulanmış çalışma stratejisini anlık gösterir.
+  - 🎙️ **Discord Ses (WebRTC):** Ses sunucularının erişilebilirliğini ve 0 ms gecikmeli durumu raporlar.
+  - 🧱 **Roblox Erişimi:** Web ve oyun sunucularının erişim durumunu canlı gösterir.
+  - 🛡️ **Güvenlik Duvarı:** İşlenen paket sayısını listeler.
+- **Grafiksel Hızlı İşlemler:**
+  - `[ ⚡ Ağımı Otomatik Ayarla (Tune) ]`: Terminal açmadan, grafiksel şifre kutusuyla (`pkexec`) tek tıkla ağınız için en uygun stratejiyi bulur ve uygular.
+  - `[ 🔄 Test Et ]`: Canlı Discord ve Roblox gecikmesini test eder.
+  - `[ 🛠️ Ağ Teşhisi Yap ]`: 12 adımlı derin ISS teşhis raporunu pencere içinde listeler.
+  - `[ 🛑 Servisi Başlat / Durdur ]`: Servis durumunu tek tıkla kontrol etmenizi sağlar.
+
+---
+
+## 🛠️ Temel Komutlar (Terminal Sevenler İçin)
 
 ```bash
-# Mevcut servis ve bağlantı durumunu görüntüleme
+# Mevcut servis ve bağlantı durumunu görüntüleme (Discord + Roblox)
 discord-bypass status
 
 # Bulunduğunuz ağ için çalışan stratejiyi otomatik belirleme ve uygulama
 sudo discord-bypass tune
+
+# Grafik kontrol panelini başlatma
+discord-bypass-gui
 
 # Mevcut aktif stratejiyi ve doğrulama ayrıntılarını görüntüleme
 discord-bypass strategy current
@@ -130,6 +145,9 @@ discord-bypass notify-status
 # 12 adımlı derin ağ ve ISS teşhisini çalıştırma
 discord-bypass diagnose
 
+# Ağ arayüzü izleyicisini başlatma (Wi-Fi/Hotspot geçişlerinde otomatik uyum)
+discord-bypass watch
+
 # Servis loglarını canlı takip etme
 discord-bypass logs
 ```
@@ -144,7 +162,7 @@ Eğer `discord-bypass tune` çalıştırdığınızda tüm stratejiler başarıs
 1. **Turkcell Superonline Hesabınıza** (web veya mobil uygulama) giriş yapın.
 2. **Güvenli İnternet** ayarlarına gidin.
 3. Profilinizi **"Standart Profil"** (Korumasız / Standart İnternet) olarak değiştirin.
-4. Modeminizi yeniden başlatın ve ardından terminalde tekrar çalıştırın:
+4. Modeminizi yeniden başlatın ve ardından tekrar çalıştırın:
    ```bash
    sudo discord-bypass tune
    ```
@@ -154,29 +172,12 @@ Eğer `discord-bypass tune` çalıştırdığınızda tüm stratejiler başarıs
 ## 🔒 Güvenlik ve Sıfır Patlama Yarıçapı (Zero Blast Radius)
 
 - **İzole Güvenlik Duvarı:** `discord-bypass`, modern Linux `nftables` üzerinde kendine ait izole bir tablo oluşturur (`table inet discord_bypass`). Mevcut güvenlik duvarı kurallarınızı (UFW, Docker, iptables) asla silmez veya bozmaz.
-- **Sadece Discord Trafiği:** Yalnızca Discord'a ait onaylı domain ve IP blokları (`@discord_v4` ve `@discord_v6`) hedeflenir. Bankacılık, oyun, video akış ve genel web trafiğiniz bu tablodan tamamen muaftır.
+- **Yalnızca Hedef Servisler:** Yalnızca Discord ve Roblox'a ait onaylı alan adları ve IP blokları (`@discord_v4` ve `@discord_v6`) hedeflenir. Bankacılık, oyun, video akış ve genel web trafiğiniz bu tablodan tamamen muaftır.
 - **Sıfır Telemetri:** Hiçbir veri, IP adresi, donanım kimliği veya sistem bilgisi toplanmaz ya da harici sunuculara iletilmez. Tüm mantık yerel makinenizde çalışır.
 - **Acil Durum Koruması:** Herhangi bir anda tüm kuralları temizlemek ve trafiği anında varsayılana döndürmek için:
   ```bash
   sudo discord-bypass emergency-disable
   ```
-
----
-
-## 💻 Masaüstü Kontrol Paneli (GUI) & Entegrasyon
-
-Terminal kullanmak istemeyen kullanıcılar ve oyuncular için **Discord temalı, karanlık modda çalışan modern bir Grafiksel Kontrol Paneli** (`discord-bypass-gui`) sunulmaktadır:
-
-- **Uygulamalar Menüsünden Tek Tık:** Kurulum yapıldığında başlatıcı menünüze (**Uygulamalar -> İnternet -> Discord Bypass**) otomatik olarak eklenir. Tıkladığınızda doğrudan grafik kontrol paneli açılır.
-- **Canlı Görsel Durum Paneli:**
-  - 🟢 **Bağlantı & Strateji:** Aktif ve doğrulanmış çalışma stratejisini anlık gösterir.
-  - 🎙️ **Discord Ses (WebRTC):** Ses sunucularının erişilebilirliğini ve 0 ms gecikmeli durumu raporlar.
-  - 🛡️ **Güvenlik Duvarı:** İşlenen Discord paket sayısını canlı olarak listeler.
-- **Grafiksel Kolay Aksiyonlar:**
-  - `[ ⚡ Ağımı Otomatik Ayarla (Tune) ]`: Terminal açmadan, grafiksel şifre onay kutusuyla (`pkexec`) tek tıkla ağınız için en uygun stratejiyi bulur ve uygular.
-  - `[ 🔄 Test Et ]`: Canlı Gateway ve REST API gecikmesini test eder.
-  - `[ 🛠️ Ağ Teşhisi Yap ]`: 12 adımlı derin ISS teşhis raporunu pencere içinde canlı listeler.
-  - `[ 🛑 Servisi Başlat / Durdur ]`: Servis durumunu tek tıkla kontrol etmenizi sağlar.
 
 ---
 

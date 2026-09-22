@@ -1,7 +1,8 @@
-# Discord domains allowlist for discord-bypass
-# One domain per line. Wildcards (*.example.com) or exact domains.
+# Discord & Roblox domains allowlist for discord-bypass
+# One domain per line. Exact domains or subdomains.
 # Lines starting with # are comments.
 
+# --- Discord Domains ---
 discord.com
 gateway.discord.gg
 cdn.discordapp.com
@@ -18,3 +19,38 @@ discord.design
 discord.dev
 discord.new
 discord.gift
+
+# --- Roblox Domains (Blocked in TR) ---
+roblox.com
+www.roblox.com
+api.roblox.com
+apis.roblox.com
+setup.rbxcdn.com
+rbxcdn.com
+assetdelivery.roblox.com
+clientsettings.roblox.com
+clientsettingscdn.roblox.com
+versioncompatibility.api.roblox.com
+chat.roblox.com
+presence.roblox.com
+notifications.roblox.com
+realtime.roblox.com
+locale.roblox.com
+auth.roblox.com
+economy.roblox.com
+games.roblox.com
+gamepersistence.roblox.com
+economycreatorstats.roblox.com
+ecsv2.roblox.com
+robloxlabs.com
+tr.rbxcdn.com
+users.roblox.com
+thumbnails.roblox.com
+accountinformation.roblox.com
+privatemessages.roblox.com
+friends.roblox.com
+groups.roblox.com
+inventory.roblox.com
+badges.roblox.com
+develop.roblox.com
+avatar.roblox.com

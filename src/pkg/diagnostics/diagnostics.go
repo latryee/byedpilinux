@@ -100,6 +100,10 @@ func RunDiagnostics(ctx context.Context, cfg *config.Config, sys *utils.SystemIn
 	cdnItem := checkHTTP(ctx, cfg.Diagnostics.CDNEndpoint, "Discord CDN")
 	report.Items = append(report.Items, cdnItem)
 
+	// 9b. Roblox Web & API Endpoint (Turkey Blockade Check)
+	robloxItem := checkHTTP(ctx, "https://www.roblox.com", "Roblox Web & API")
+	report.Items = append(report.Items, robloxItem)
+
 	// 10. Discord Voice / WebRTC Endpoint Probe
 	voiceItem := checkVoice(ctx, cfg.Diagnostics.VoiceEndpoint)
 	report.Items = append(report.Items, voiceItem)

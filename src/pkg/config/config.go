@@ -119,6 +119,12 @@ func DefaultConfig() *Config {
 			"discordapp.net",
 			"discordstatus.com",
 			"latency.discord.media",
+			"roblox.com",
+			"www.roblox.com",
+			"apis.roblox.com",
+			"setup.rbxcdn.com",
+			"rbxcdn.com",
+			"assetdelivery.roblox.com",
 		},
 	}
 }
