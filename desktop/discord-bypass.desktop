@@ -8,24 +8,8 @@ Name[tr]=Discord & Roblox Bypass
 GenericName[tr]=DPI Aşma Aracı (Discord & Roblox)
 Comment[tr]=Discord ve Roblox Linux DPI Engelleme ve Bağlantı Aracı
 Icon=discord-bypass
-Exec=sh -c 'if [ -x /usr/bin/discord-bypass-gui ]; then /usr/bin/discord-bypass-gui; elif [ -x /usr/local/bin/discord-bypass-gui ]; then /usr/local/bin/discord-bypass-gui; elif [ -x "$HOME/.local/bin/discord-bypass-gui" ]; then "$HOME/.local/bin/discord-bypass-gui"; elif [ -x "$HOME/Masaüstü/byedpilinux/desktop/discord-bypass-gui" ]; then "$HOME/Masaüstü/byedpilinux/desktop/discord-bypass-gui"; else discord-bypass notify-status; fi'
+Exec=discord-bypass-gui
 Terminal=false
-Categories=Network;Utility;
+Categories=Network;
 Keywords=Discord;Roblox;DPI;Bypass;Zapret;Network;Turkey;VPN;Proxy;Sober;Vinegar;
 StartupNotify=false
-Actions=Status;Diagnose;Tune;
-
-[Desktop Action Status]
-Name=Show Status Notification
-Name[tr]=Durum Bildirimini Göster
-Exec=discord-bypass notify-status
-
-[Desktop Action Diagnose]
-Name=Run Deep Diagnostic
-Name[tr]=Derin Ağ Teşhisini Başlat
-Exec=sh -c 'x-terminal-emulator -e discord-bypass diagnose || discord-bypass notify-status'
-
-[Desktop Action Tune]
-Name=Run Automatic Strategy Tuner
-Name[tr]=Otomatik Strateji Bulucuyu Başlat
-Exec=sh -c 'pkexec discord-bypass tune || x-terminal-emulator -e sudo discord-bypass tune'

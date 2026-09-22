@@ -51,7 +51,6 @@ window {
     color: #8e9297;
     font-size: 11px;
     font-weight: bold;
-    text-transform: uppercase;
 }
 .status-active {
     color: #57F287;
@@ -136,13 +135,16 @@ class DiscordBypassApp(Gtk.Window):
                 pass
 
         # Apply CSS
-        style_provider = Gtk.CssProvider()
-        style_provider.load_from_data(CSS_STYLE)
-        Gtk.StyleContext.add_provider_for_screen(
-            Gdk.Screen.get_default(),
-            style_provider,
-            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
+        try:
+            style_provider = Gtk.CssProvider()
+            style_provider.load_from_data(CSS_STYLE)
+            Gtk.StyleContext.add_provider_for_screen(
+                Gdk.Screen.get_default(),
+                style_provider,
+                Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+        except Exception as e:
+            print(f"Warning: Could not load custom CSS: {e}")
 
         self.binary_path = self.find_binary()
         self.build_ui()
