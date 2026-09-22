@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    if [ -d /run/systemd/system ]; then
+        systemctl daemon-reload || true
+        systemctl enable discord-bypass.service || true
+    fi
+fi
+
+exit 0

@@ -1,0 +1,97 @@
+# discord-bypass Configuration File
+# Location: /etc/discord-bypass/config.toml (system-wide) or ./config/config.toml (local)
+
+[general]
+# Logging verbosity: "debug", "info", "warn", "error"
+log_level = "info"
+
+# Path to the domain allowlist
+domains_file = "/etc/discord-bypass/domains.txt"
+
+# Prefer IPv4 for Discord connections.
+# Many Turkish ISPs (Türk Telekom, Superonline) have erratic or blocked IPv6 routes for Discord.
+# Setting this to true avoids IPv6 timeouts while leaving system-wide IPv6 untouched.
+prefer_ipv4 = true
+
+# DPI evasion backend:
+# "nfqws"   - Linux Netfilter NFQUEUE packet desynchronizer (recommended, high-performance)
+# "native"  - Built-in zero-dependency Go transparent TCP splitter
+# "byedpi"  - ByeDPI userspace proxy engine
+backend = "nfqws"
+
+# Selected strategy:
+# "strategy_a" - Direct connection (benchmark baseline)
+# "strategy_b" - Secure DNS only (for pure DNS blocking)
+# "strategy_c" - TCP segmentation / split2 (recommended for Turkish ISPs)
+# "strategy_d" - Advanced DPI desync (fake packet + split2 + disorder)
+strategy = "strategy_c"
+
+[dns]
+# DNS resolution mode: "doh" (DNS over HTTPS), "system", "custom"
+mode = "doh"
+
+# Upstream DoH provider: "cloudflare", "google", "quad9", or custom HTTPS URL
+# "cloudflare" -> https://1.1.1.1/dns-query
+# "google"     -> https://dns.google/dns-query
+# "quad9"      -> https://dns.quad9.net/dns-query
+doh_provider = "cloudflare"
+
+# Custom DNS IP:Port if mode = "custom"
+custom_resolver = "1.1.1.1:53"
+
+# How often (in seconds) to re-resolve Discord domains and refresh firewall IP sets
+update_interval_sec = 300
+
+# Safely sync Discord domain mappings into /etc/hosts to override ISP DNS poisoning.
+# This prevents applications from connecting to BTK/ISP block sinkholes (e.g. 195.175.254.2).
+sync_hosts = true
+
+# Local loopback port for the built-in Secure DNS forwarder
+local_dns_port = 5354
+
+[firewall]
+# Firewall management driver: "auto", "nftables", "iptables"
+# "auto" detects nftables first, falling back to iptables.
+driver = "auto"
+
+# Name of the dedicated nftables table (never modifies user's existing tables)
+table_name = "discord_bypass"
+
+# NFQUEUE queue number for nfqws
+queue_num = 200
+
+# Local port for native transparent proxy backend
+proxy_port = 10443
+
+# Whether to manage IPv6 firewall rules (only if IPv6 is enabled and routable)
+manage_ipv6 = true
+
+# Block UDP port 443 (QUIC) for Discord to force fallback to TLS TCP 443.
+# Default is false to avoid disrupting UDP/Voice traffic unless specifically needed.
+block_quic = false
+
+[nfqws]
+# Path to compiled nfqws binary
+binary_path = "/usr/local/bin/discord-bypass-nfqws"
+
+# Strategy parameters for nfqws:
+# split2: split TLS ClientHello into 2 TCP packets at byte 2
+# fake: send low-TTL fake packet before real packet
+# disorder2: send second segment first
+strategy_c_args = ["--dpi-desync=split2"]
+strategy_d_args = ["--dpi-desync=fake,split2", "--dpi-desync-ttl=4"]
+
+[native]
+# Split position for native Go transparent proxy (2 = after TLS record version)
+split_pos = 2
+split_delay_ms = 2
+
+[diagnostics]
+# Timeout in seconds for individual diagnostic network probes
+timeout_sec = 5
+
+# Probed endpoints for diagnostics
+api_endpoint = "https://discord.com/api/v9/gateway"
+gateway_endpoint = "wss://gateway.discord.gg"
+cdn_endpoint = "https://cdn.discordapp.com"
+voice_endpoint = "voice.discord.media:443"

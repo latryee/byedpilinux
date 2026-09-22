@@ -1,0 +1,31 @@
+[Unit]
+Description=Discord DPI Circumvention Service (discord-bypass)
+Documentation=https://github.com/byedpilinux
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/discord-bypass daemon
+ExecStop=/usr/local/bin/discord-bypass emergency-disable
+Restart=on-failure
+RestartSec=3s
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+# Security Hardening & Minimal Capabilities
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/etc/discord-bypass
+LimitNOFILE=65535
+
+# Structured Journal Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=discord-bypass
+
+[Install]
+WantedBy=multi-user.target

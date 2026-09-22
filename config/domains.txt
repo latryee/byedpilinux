@@ -1,0 +1,20 @@
+# Discord domains allowlist for discord-bypass
+# One domain per line. Wildcards (*.example.com) or exact domains.
+# Lines starting with # are comments.
+
+discord.com
+gateway.discord.gg
+cdn.discordapp.com
+media.discordapp.net
+router.discordapp.net
+discord.gg
+discordapp.com
+discordapp.net
+discordstatus.com
+latency.discord.media
+discord.media
+discord.co
+discord.design
+discord.dev
+discord.new
+discord.gift
