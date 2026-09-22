@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="$ROOT_DIR/packaging/build"
-DEB_NAME="discord-bypass_1.0.0_amd64.deb"
+DEB_NAME="discord-bypass_1.1.0_amd64.deb"
 
 echo "[INFO] Preparing package directory structure..."
 rm -rf "$BUILD_DIR"
@@ -33,8 +33,9 @@ cp "$ROOT_DIR/desktop/discord-bypass.svg" "$BUILD_DIR/usr/share/icons/hicolor/sc
 chmod 0644 "$BUILD_DIR/usr/share/applications/discord-bypass.desktop"
 chmod 0644 "$BUILD_DIR/usr/share/icons/hicolor/scalable/apps/discord-bypass.svg"
 
-# Copy binaries to FHS compliant /usr/bin/
+# Copy binaries to FHS compliant /usr/bin/ and add byedpi symlink
 cp "$ROOT_DIR/bin/discord-bypass" "$BUILD_DIR/usr/bin/"
+ln -sf discord-bypass "$BUILD_DIR/usr/bin/byedpi"
 cp "$ROOT_DIR/bin/discord-bypass-nfqws" "$BUILD_DIR/usr/bin/"
 cp "$ROOT_DIR/desktop/discord-bypass-gui" "$BUILD_DIR/usr/bin/"
 chmod 0755 "$BUILD_DIR/usr/bin/discord-bypass" "$BUILD_DIR/usr/bin/discord-bypass-nfqws" "$BUILD_DIR/usr/bin/discord-bypass-gui"

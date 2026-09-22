@@ -1,6 +1,6 @@
 # Maintainer: Latryee <support@discord-bypass.local>
 pkgname=discord-bypass
-pkgver=1.0.0
+pkgver=1.1.0
 pkgrel=1
 pkgdesc="Linux DPI circumvention tool optimized for Discord & Roblox in Türkiye"
 arch=('x86_64')
