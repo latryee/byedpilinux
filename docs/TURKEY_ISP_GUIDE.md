@@ -24,7 +24,7 @@ Turkcell Superonline deploys a coordinated two-stage censorship architecture:
 - **Overcoming Stage 1 (DNS):**
   Set `sync_hosts = true` in `/etc/discord-bypass/config.toml`. The daemon queries DoH (Cloudflare 1.1.1.1) and atomically updates `/etc/hosts` with legitimate Discord IPs. In Linux libc, `/etc/hosts` is checked **before** DNS (`files` before `dns` in `/etc/nsswitch.conf`), guaranteeing the Discord client connects directly to Discord's genuine servers.
 - **Overcoming Stage 2 (DPI):**
-  Uses `strategy = "strategy_c"` (`split2` TCP segmentation) with the `nfqws` backend. Splitting the TLS ClientHello at the 2nd byte of the SNI prevents the Huawei DPI engine from reconstructing the forbidden domain name while remaining RFC-compliant for Cloudflare.
+  Uses `strategy = "strategy_c"` (`fakedsplit` with `midsld` split position and `ttl=6`) with the `nfqws` backend. Injects a fake TLS segment with IP TTL=6 that confuses the Superonline Huawei DPI engine and expires in the ISP core before reaching Cloudflare's Frankfurt edge, followed by the real segmented ClientHello split in the middle of the second-level domain name (`midsld`).
 - **Voice Connectivity:**
   Ensure `prefer_ipv4 = true` and `block_quic = false`. Superonline often announces IPv6 routes that blackhole UDP traffic, so prioritizing IPv4 ensures snappy WebRTC voice connection.
 
@@ -38,13 +38,18 @@ prefer_ipv4 = true
 [dns]
 mode = "doh"
 doh_provider = "cloudflare"
-update_interval_sec = 60
+update_interval_sec = 300
 sync_hosts = true
-local_dns_port = 5354
+local_dns_port = 0
 
 [firewall]
 driver = "auto"
 block_quic = false
+
+[nfqws]
+binary_path = "/usr/bin/discord-bypass-nfqws"
+strategy_c_args = ["--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"]
+strategy_d_args = ["--dpi-desync=fakeddisorder", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"]
 ```
 
 ### Critical Prerequisite: "Güvenli İnternet"
@@ -94,6 +99,37 @@ Kablonet inspects SNI on port 443.
 
 ---
 
+## Automatic Strategy Tuning
+
+Instead of manually editing configuration files or guessing middlebox TTL values across different Turkish ISPs and routing paths, use the native auto-tuner:
+
+```bash
+# Automatically test and verify candidates for your ISP line
+sudo discord-bypass tune
+```
+
+How `tune` works on Turkish networks:
+1. **Direct Test**: First tests if direct connectivity is working (e.g. if BTK block has been lifted or if you are using an unrestricted network). If direct works, it sets `strategy_a` (zero bypass overhead).
+2. **Candidate Sweep**: If blocked, it tests candidate bypass strategies in prioritized order:
+   - `strategy_c` (`fakedsplit midsld ttl=6` — confirmed effective on Turkcell Superonline fiber)
+   - `strategy_c_ttl5` (`fakedsplit midsld ttl=5` — for shorter ISP core hops)
+   - `strategy_c_ttl4` (`fakedsplit midsld ttl=4` — for low-hop middleboxes)
+   - `strategy_d` (`fakeddisorder midsld ttl=6` — for aggressive stateful TCP reassembly)
+   - `strategy_d_ttl5` (`fakeddisorder midsld ttl=5`)
+   - `strategy_b` (`doh` — for pure DNS blocking)
+   - `strategy_split2` (`multisplit split-pos=2` — for stateless DPIs)
+3. **Application-Layer Verification**: Each candidate is verified with real Discord Layer-7 probes (Gateway WebSocket / REST API).
+4. **Persistence & Safe Rollback**: The first verified candidate is persisted to `/etc/discord-bypass/config.toml` and saved to `/etc/discord-bypass/network-profile.json`. If all candidates fail, previous working configuration is automatically restored.
+
+To inspect or manually manage strategies:
+```bash
+discord-bypass strategy list
+discord-bypass strategy current
+sudo discord-bypass strategy set strategy_c
+```
+
+---
+
 ## Diagnostic Workflow for Turkish Networks
 
 When diagnosing connectivity on any Turkish ISP:
@@ -111,3 +147,4 @@ Examine the output lines:
 3. **If Voice UDP Probe reports [WARN] or Discord voice status shows "No Route":**
    - Verify `prefer_ipv4 = true` in `/etc/discord-bypass/config.toml`.
    - In Discord Desktop App: Go to **User Settings -> Voice & Video -> Advanced**, and toggle **"Enable Quality of Service High Packet Priority"** off.
+

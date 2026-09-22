@@ -82,10 +82,23 @@ fi
 
 # Remove binaries
 echo -e "[INFO] Removing installed binaries..."
+rm -f /usr/bin/discord-bypass
+rm -f /usr/bin/discord-bypass-nfqws
 rm -f /usr/local/bin/discord-bypass
 rm -f /usr/local/bin/discord-bypass-nfqws
-echo "  [+] Removed /usr/local/bin/discord-bypass"
-echo "  [+] Removed /usr/local/bin/discord-bypass-nfqws"
+echo "  [+] Removed installed binaries and symlinks"
+
+# Remove desktop integration
+echo -e "[INFO] Removing desktop integration..."
+rm -f /usr/share/applications/discord-bypass.desktop
+rm -f /usr/share/icons/hicolor/scalable/apps/discord-bypass.svg
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database -q /usr/share/applications || true
+fi
+if command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+fi
+echo "  [+] Removed desktop entry and application icon"
 
 # Configuration directory handling
 PURGE="${1:-}"

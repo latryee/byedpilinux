@@ -1,0 +1,9 @@
+{
+  "network_name": "enp5s0",
+  "strategy_id": "strategy_c",
+  "strategy_name": "TLS SNI Fake Split (fakedsplit midsld ttl=6)",
+  "status": "verified",
+  "verification_type": "gateway_rest",
+  "verified_at": "2026-09-23T00:32:00Z",
+  "source": "live_network_probe"
+}

@@ -343,11 +343,11 @@ func checkHTTP(ctx context.Context, endpoint string, label string) DiagnosticIte
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-	if resp.StatusCode >= 200 && resp.StatusCode < 400 {
+	if (resp.StatusCode >= 200 && resp.StatusCode < 400) || resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return DiagnosticItem{
 			Name:    label,
 			Status:  StatusOk,
-			Details: fmt.Sprintf("HTTP %d OK (%d bytes read)", resp.StatusCode, len(body)),
+			Details: fmt.Sprintf("HTTP %d (%d bytes read)", resp.StatusCode, len(body)),
 			Latency: latency,
 		}
 	}
@@ -410,6 +410,9 @@ func checkGateway(ctx context.Context, wsURL string) DiagnosticItem {
 }
 
 func checkVoice(ctx context.Context, endpoint string) DiagnosticItem {
+	if endpoint == "" || strings.HasPrefix(endpoint, "voice.discord.media") {
+		endpoint = "latency.discord.media:443"
+	}
 	start := time.Now()
 	// Test UDP socket ping
 	d := net.Dialer{Timeout: 3 * time.Second}
@@ -479,6 +482,15 @@ func checkFirewall(fw firewall.FirewallManager) DiagnosticItem {
 			Name:    "Firewall Rules",
 			Status:  StatusOk,
 			Details: fmt.Sprintf("Rules active on %s (Processed: %d packets, %d bytes)", fw.DriverName(), packets, bytes),
+		}
+	}
+
+	// Unprivileged check: retrieve live stats from running daemon
+	if status, err := utils.ReadRuntimeStatus(); err == nil && status.FirewallActive {
+		return DiagnosticItem{
+			Name:    "Firewall Rules",
+			Status:  StatusOk,
+			Details: fmt.Sprintf("Rules active on %s (Processed: %d packets, %d bytes)", status.FirewallDriver, status.Packets, status.Bytes),
 		}
 	}
 

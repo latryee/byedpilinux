@@ -9,6 +9,12 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
         systemctl stop discord-bypass.service >/dev/null 2>&1 || true
         systemctl disable discord-bypass.service >/dev/null 2>&1 || true
     fi
+    if [ -L /usr/local/bin/discord-bypass ]; then
+        rm -f /usr/local/bin/discord-bypass
+    fi
+    if [ -L /usr/local/bin/discord-bypass-nfqws ]; then
+        rm -f /usr/local/bin/discord-bypass-nfqws
+    fi
 fi
 
 exit 0

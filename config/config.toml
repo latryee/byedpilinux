@@ -75,7 +75,7 @@ block_quic = false
 
 [nfqws]
 # Path to compiled nfqws binary
-binary_path = "/usr/local/bin/discord-bypass-nfqws"
+binary_path = "/usr/bin/discord-bypass-nfqws"
 
 # Live-tested and verified working parameters for Turkcell Superonline & major Turkish ISPs:
 # fakedsplit with midsld and TTL=6 evades ISP DPI while expiring before reaching Cloudflare.
@@ -95,4 +95,4 @@ timeout_sec = 5
 api_endpoint = "https://discord.com/api/v9/gateway"
 gateway_endpoint = "wss://gateway.discord.gg"
 cdn_endpoint = "https://cdn.discordapp.com"
-voice_endpoint = "voice.discord.media:443"
+voice_endpoint = "latency.discord.media:443"

@@ -20,6 +20,20 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Detect remote execution (curl | bash)
+SCRIPT_DIR="$(pwd)"
+if [ ! -f "$SCRIPT_DIR/src/cmd/discord-bypass/main.go" ] && [ ! -f "$SCRIPT_DIR/bin/discord-bypass" ]; then
+    echo -e "[INFO] Remote execution detected. Fetching latest repository files..."
+    TMP_DIR=$(mktemp -d /tmp/discord-bypass-install.XXXXXX)
+    trap 'rm -rf "$TMP_DIR"' EXIT
+    if command -v git &>/dev/null; then
+        git clone --depth=1 https://github.com/latryee/byedpilinux.git "$TMP_DIR"
+    else
+        curl -fsSL https://github.com/latryee/byedpilinux/archive/refs/heads/main.tar.gz | tar -xz -C "$TMP_DIR" --strip-components=1
+    fi
+    cd "$TMP_DIR"
+fi
+
 # Detect Distro
 if [ -f /etc/os-release ]; then
     . /etc/os-release
@@ -70,9 +84,11 @@ echo -e "[INFO] Building binaries..."
 make -C "$(dirname "$0")" build
 
 # Install binaries
-echo -e "[INFO] Installing binaries to /usr/local/bin/..."
-install -m 0755 bin/discord-bypass /usr/local/bin/discord-bypass
-install -m 0755 bin/discord-bypass-nfqws /usr/local/bin/discord-bypass-nfqws
+echo -e "[INFO] Installing binaries to /usr/bin/ and /usr/local/bin/..."
+install -m 0755 bin/discord-bypass /usr/bin/discord-bypass
+install -m 0755 bin/discord-bypass-nfqws /usr/bin/discord-bypass-nfqws
+ln -sf /usr/bin/discord-bypass /usr/local/bin/discord-bypass 2>/dev/null || true
+ln -sf /usr/bin/discord-bypass-nfqws /usr/local/bin/discord-bypass-nfqws 2>/dev/null || true
 
 # Install configurations
 echo -e "[INFO] Configuring /etc/discord-bypass/..."
@@ -111,13 +127,36 @@ else
     echo -e "${YELLOW}[WARN] systemd not active (container or chroot). You can run 'sudo discord-bypass daemon' manually.${NC}"
 fi
 
+# Install desktop integration
+echo -e "[INFO] Installing desktop entry and application icon..."
+mkdir -p /usr/share/applications
+mkdir -p /usr/share/icons/hicolor/scalable/apps
+install -m 0644 desktop/discord-bypass.desktop /usr/share/applications/discord-bypass.desktop
+install -m 0644 desktop/discord-bypass.svg /usr/share/icons/hicolor/scalable/apps/discord-bypass.svg
+if command -v update-desktop-database &>/dev/null; then
+    update-desktop-database -q /usr/share/applications || true
+fi
+if command -v gtk-update-icon-cache &>/dev/null; then
+    gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+fi
+
+# Run auto-tuning for current network
+if [ -d /run/systemd/system ] && systemctl is-active --quiet discord-bypass; then
+    echo -e "\n${BLUE}[INFO] Running automatic strategy tuning for current network...${NC}"
+    /usr/bin/discord-bypass tune || true
+fi
+
 echo -e "\n${GREEN}============================================================${NC}"
 echo -e "${GREEN}             Installation Successfully Completed!           ${NC}"
 echo -e "${GREEN}============================================================${NC}"
 echo "Quick Commands:"
 echo "  discord-bypass status          - View service & connectivity status"
+echo "  sudo discord-bypass tune       - Automatically find & verify working strategy for your network"
+echo "  discord-bypass strategy list   - List all available strategies & candidates"
+echo "  discord-bypass strategy current- View active strategy & verification status"
+echo "  sudo discord-bypass strategy set <id> - Safely switch strategy with auto-rollback"
 echo "  discord-bypass diagnose        - Run full 12-point diagnostic test"
-echo "  discord-bypass test            - Test Discord endpoints"
+echo "  discord-bypass notify-status   - Dispatch desktop status notification"
 echo "  sudo discord-bypass stop       - Temporarily stop bypass"
 echo "  sudo discord-bypass start      - Start bypass"
 echo "  sudo discord-bypass uninstall  - Clean uninstall"

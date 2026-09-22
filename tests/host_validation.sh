@@ -43,7 +43,7 @@ if [ ! -f "$DEB_FILE" ]; then
 fi
 apt install -y --reinstall "$DEB_FILE" >/dev/null 2>&1 || dpkg -i "$DEB_FILE"
 
-NFQWS_SIZE=$(stat -c %s /usr/local/bin/discord-bypass-nfqws 2>/dev/null || echo 0)
+NFQWS_SIZE=$(stat -c %s /usr/bin/discord-bypass-nfqws 2>/dev/null || stat -c %s /usr/local/bin/discord-bypass-nfqws 2>/dev/null || echo 0)
 if [ "$NFQWS_SIZE" -gt 200000 ]; then
     record_pass "discord-bypass-nfqws installed correctly ($NFQWS_SIZE bytes, zapret v72.13)"
 else
@@ -62,13 +62,13 @@ else
     journalctl -u discord-bypass -n 30 --no-pager
 fi
 
-if pgrep -f "/usr/local/bin/discord-bypass daemon" >/dev/null; then
+if pgrep -f "discord-bypass daemon" >/dev/null; then
     record_pass "Go supervisor process running"
 else
     record_fail "Go supervisor process not found"
 fi
 
-if pgrep -f "/usr/local/bin/discord-bypass-nfqws" >/dev/null; then
+if pgrep -f "discord-bypass-nfqws" >/dev/null; then
     record_pass "nfqws packet engine process running"
 else
     record_fail "nfqws packet engine process not found"
@@ -188,13 +188,13 @@ systemctl stop discord-bypass
 STOP_TIME_END=$(date +%s%N)
 STOP_DURATION_MS=$(( (STOP_TIME_END - STOP_TIME_START) / 1000000 ))
 
-if ! pgrep -f "/usr/local/bin/discord-bypass daemon" >/dev/null; then
+if ! pgrep -f "discord-bypass daemon" >/dev/null; then
     record_pass "Daemon process terminated cleanly"
 else
     record_fail "Orphan daemon process found"
 fi
 
-if ! pgrep -f "/usr/local/bin/discord-bypass-nfqws" >/dev/null; then
+if ! pgrep -f "discord-bypass-nfqws" >/dev/null; then
     record_pass "nfqws process terminated cleanly"
 else
     record_fail "Orphan nfqws process found"

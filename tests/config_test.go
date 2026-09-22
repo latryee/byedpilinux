@@ -1,11 +1,14 @@
 package tests
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"discord-bypass/src/pkg/config"
+	"discord-bypass/src/pkg/utils"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -167,3 +170,113 @@ block_quic = false
 		t.Errorf("Expected ProxyPort 12345, got %d", cfg.Firewall.ProxyPort)
 	}
 }
+
+func TestRuntimeStatusSerialization(t *testing.T) {
+	st := &utils.RuntimeStatus{
+		PID:            1234,
+		StartTime:      time.Now().Add(-10 * time.Minute),
+		UpdateTime:     time.Now(),
+		ServiceActive:  true,
+		BackendName:    "nfqws (Netfilter queue)",
+		BackendRunning: true,
+		BackendPID:     1235,
+		ActiveStrategy: "strategy_c",
+		StrategyName:   "TLS SNI Fake Split (fakedsplit midsld ttl=6)",
+		FirewallDriver: "nftables",
+		FirewallActive: true,
+		Packets:        42,
+		Bytes:          1024,
+		DNSMode:        "doh",
+		DoHProvider:    "cloudflare",
+		SyncHosts:      true,
+		TargetDomains:  16,
+	}
+
+	tmpFile := filepath.Join(t.TempDir(), "status.json")
+	data, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+		t.Fatalf("WriteFile failed: %v", err)
+	}
+
+	readData, err := os.ReadFile(tmpFile)
+	if err != nil {
+		t.Fatalf("ReadFile failed: %v", err)
+	}
+
+	var readSt utils.RuntimeStatus
+	if err := json.Unmarshal(readData, &readSt); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	if readSt.Packets != 42 || !readSt.FirewallActive || readSt.ActiveStrategy != "strategy_c" {
+		t.Errorf("Runtime status fields mismatch: %+v", readSt)
+	}
+}
+
+func TestUpdateStrategyInConfigAndRollback(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.toml")
+
+	initialContent := `# Configuration test file
+[general]
+log_level = "info"
+backend = "nfqws"
+strategy = "strategy_c"
+
+[dns]
+mode = "doh"
+sync_hosts = true
+
+[nfqws]
+strategy_c_args = ["--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"]
+`
+	if err := os.WriteFile(configFile, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("Failed writing test config: %v", err)
+	}
+
+	// 1. Update strategy to strategy_d
+	if err := config.UpdateStrategyInConfig(configFile, "strategy_d", nil); err != nil {
+		t.Fatalf("UpdateStrategyInConfig failed: %v", err)
+	}
+
+	// 2. Verify updated config
+	updatedCfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		t.Fatalf("LoadConfig failed on updated file: %v", err)
+	}
+	if updatedCfg.General.Strategy != "strategy_d" {
+		t.Errorf("Expected updated strategy strategy_d, got %s", updatedCfg.General.Strategy)
+	}
+	if updatedCfg.General.Backend != "nfqws" || !updatedCfg.DNS.SyncHosts {
+		t.Errorf("Unrelated config settings altered unexpectedly: %+v", updatedCfg)
+	}
+
+	// 3. Verify backup file exists and has previous strategy
+	bakFile := configFile + ".autobak"
+	if _, err := os.Stat(bakFile); err != nil {
+		t.Fatalf("Expected backup file %s to exist: %v", bakFile, err)
+	}
+	bakCfg, err := config.LoadConfig(bakFile)
+	if err != nil {
+		t.Fatalf("LoadConfig failed on backup file: %v", err)
+	}
+	if bakCfg.General.Strategy != "strategy_c" {
+		t.Errorf("Expected backup strategy strategy_c, got %s", bakCfg.General.Strategy)
+	}
+
+	// 4. Test Rollback
+	if err := config.RestoreConfigBackup(configFile); err != nil {
+		t.Fatalf("RestoreConfigBackup failed: %v", err)
+	}
+	restoredCfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		t.Fatalf("LoadConfig failed on restored file: %v", err)
+	}
+	if restoredCfg.General.Strategy != "strategy_c" {
+		t.Errorf("Expected restored strategy strategy_c, got %s", restoredCfg.General.Strategy)
+	}
+}
+

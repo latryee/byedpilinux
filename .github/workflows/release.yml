@@ -1,0 +1,54 @@
+name: Release & Package Assets
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build Multi-Arch Assets & Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gcc make libnetfilter-queue-dev libmnl-dev nftables iptables
+
+      - name: Run Tests
+        run: go test -v -race ./tests/...
+
+      - name: Build Production Binaries
+        run: make build
+
+      - name: Build Debian Package
+        run: ./packaging/build_deb.sh
+
+      - name: Create Tarball Archive
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p "discord-bypass-${VERSION}-linux-amd64"
+          cp -r bin/ config/ desktop/ systemd/ install.sh uninstall.sh README.md README.en.md LICENSE "discord-bypass-${VERSION}-linux-amd64/"
+          tar -czvf "discord-bypass-${VERSION}-linux-amd64.tar.gz" "discord-bypass-${VERSION}-linux-amd64"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            discord-bypass_*.deb
+            discord-bypass-*-linux-amd64.tar.gz
+          generate_release_notes: true
+          draft: false
+          prerelease: false

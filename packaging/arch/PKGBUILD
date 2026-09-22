@@ -1,0 +1,37 @@
+# Maintainer: Latryee <support@discord-bypass.local>
+pkgname=discord-bypass
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="Linux DPI circumvention tool optimized for Discord in Türkiye"
+arch=('x86_64')
+url="https://github.com/latryee/byedpilinux"
+license=('MIT')
+depends=('glibc' 'nftables' 'libnetfilter_queue' 'libmnl')
+makedepends=('go' 'make' 'gcc')
+backup=('etc/discord-bypass/config.toml'
+        'etc/discord-bypass/domains.txt'
+        'etc/discord-bypass/strategies.toml')
+install=discord-bypass.install
+source=("$pkgname-$pkgver.tar.gz::https://github.com/latryee/byedpilinux/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+    cd "byedpilinux-$pkgver"
+    make build
+}
+
+package() {
+    cd "byedpilinux-$pkgver"
+    
+    install -Dm755 bin/discord-bypass "$pkgdir/usr/bin/discord-bypass"
+    install -Dm755 bin/discord-bypass-nfqws "$pkgdir/usr/bin/discord-bypass-nfqws"
+    
+    install -Dm644 config/config.toml "$pkgdir/etc/discord-bypass/config.toml"
+    install -Dm644 config/domains.txt "$pkgdir/etc/discord-bypass/domains.txt"
+    install -Dm644 config/strategies.toml "$pkgdir/etc/discord-bypass/strategies.toml"
+    
+    install -Dm644 systemd/discord-bypass.service "$pkgdir/usr/lib/systemd/system/discord-bypass.service"
+    install -Dm644 desktop/discord-bypass.desktop "$pkgdir/usr/share/applications/discord-bypass.desktop"
+    install -Dm644 desktop/discord-bypass.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/discord-bypass.svg"
+    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

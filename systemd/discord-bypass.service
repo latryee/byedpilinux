@@ -8,8 +8,8 @@ StartLimitBurst=20
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/discord-bypass daemon
-ExecStop=/usr/local/bin/discord-bypass emergency-disable
+ExecStart=/usr/bin/discord-bypass daemon
+ExecStop=/usr/bin/discord-bypass emergency-disable
 Restart=on-failure
 RestartSec=3s
 TimeoutStopSec=10s
@@ -21,6 +21,7 @@ ProtectSystem=full
 ProtectHome=read-only
 PrivateTmp=true
 ReadWritePaths=/etc/discord-bypass /etc/hosts
+RuntimeDirectory=discord-bypass
 LimitNOFILE=65535
 
 # Structured Journal Logging

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"discord-bypass/src/pkg/config"
+	"discord-bypass/src/pkg/strategy"
 	"discord-bypass/src/pkg/utils"
 )
 
@@ -50,13 +51,15 @@ func (b *NFQWSBackend) Start(ctx context.Context) error {
 
 	binPath := b.cfg.NFQWS.BinaryPath
 	if _, err := exec.LookPath(binPath); err != nil {
-		// Fallback check in local build dir
-		localBin := "./bin/discord-bypass-nfqws"
-		if _, err2 := os.Stat(localBin); err2 == nil {
-			binPath = localBin
+		if p, err2 := exec.LookPath("/usr/bin/discord-bypass-nfqws"); err2 == nil {
+			binPath = p
+		} else if p, err3 := exec.LookPath("/usr/local/bin/discord-bypass-nfqws"); err3 == nil {
+			binPath = p
+		} else if _, err4 := os.Stat("./bin/discord-bypass-nfqws"); err4 == nil {
+			binPath = "./bin/discord-bypass-nfqws"
 		} else {
 			b.mu.Unlock()
-			return fmt.Errorf("nfqws binary not found at %s or %s (run 'make build' or 'discord-bypass install')", binPath, localBin)
+			return fmt.Errorf("nfqws binary not found at %s or standard paths (run 'make build' or 'discord-bypass install')", b.cfg.NFQWS.BinaryPath)
 		}
 	}
 
@@ -119,13 +122,24 @@ func (b *NFQWSBackend) buildArgs() []string {
 	}
 
 	// Strategy specific args
-	switch b.cfg.General.Strategy {
-	case "strategy_d":
-		args = append(args, b.cfg.NFQWS.StrategyDArgs...)
-	case "strategy_c":
-		fallthrough
-	default:
-		args = append(args, b.cfg.NFQWS.StrategyCArgs...)
+	strat, err := strategy.GetStrategy(b.cfg.General.Strategy)
+	if err == nil && len(strat.NFQWSArgs) > 0 {
+		if strat.ID == "strategy_c" && len(b.cfg.NFQWS.StrategyCArgs) > 0 {
+			args = append(args, b.cfg.NFQWS.StrategyCArgs...)
+		} else if strat.ID == "strategy_d" && len(b.cfg.NFQWS.StrategyDArgs) > 0 {
+			args = append(args, b.cfg.NFQWS.StrategyDArgs...)
+		} else {
+			args = append(args, strat.NFQWSArgs...)
+		}
+	} else {
+		switch b.cfg.General.Strategy {
+		case "strategy_d":
+			args = append(args, b.cfg.NFQWS.StrategyDArgs...)
+		case "strategy_c":
+			fallthrough
+		default:
+			args = append(args, b.cfg.NFQWS.StrategyCArgs...)
+		}
 	}
 
 	return args

@@ -1,5 +1,5 @@
 # Strategy Definitions for discord-bypass
-# These strategies represent documented tiers of DPI evasion.
+# These strategies represent documented tiers of DPI evasion and candidate variants for automatic tuning.
 
 [strategies.strategy_a]
 name = "Direct (Normal Connection)"
@@ -18,17 +18,57 @@ nfqws_args = []
 native_split = 0
 
 [strategies.strategy_c]
-name = "TCP Segmentation (split2)"
-description = "Splits the TLS ClientHello into two TCP segments (first segment is 2 bytes). Evades SNI inspection on Türk Telekom, Turkcell, Vodafone, and most middleboxes without relying on TTL estimation."
+name = "TLS SNI Fake Split (fakedsplit midsld ttl=6)"
+description = "Splits the TLS ClientHello at midsld with a TTL=6 fake segment. Verified effective on Turkcell Superonline and major Turkish ISPs."
 requires_backend = true
 requires_doh = true
-nfqws_args = ["--dpi-desync=split2"]
+nfqws_args = ["--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"]
+native_split = 2
+
+[strategies.strategy_c_ttl5]
+name = "TLS SNI Fake Split (fakedsplit midsld ttl=5)"
+description = "Splits the TLS ClientHello at midsld with a TTL=5 fake segment. Alternative TTL for shorter ISP transit paths."
+requires_backend = true
+requires_doh = true
+nfqws_args = ["--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=5"]
+native_split = 2
+
+[strategies.strategy_c_ttl4]
+name = "TLS SNI Fake Split (fakedsplit midsld ttl=4)"
+description = "Splits the TLS ClientHello at midsld with a TTL=4 fake segment. Effective for low-hop ISP middleboxes."
+requires_backend = true
+requires_doh = true
+nfqws_args = ["--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=4"]
 native_split = 2
 
 [strategies.strategy_d]
-name = "Advanced DPI Desynchronization (fake + split2)"
-description = "Sends a low-TTL fake TLS ClientHello followed by segmented real ClientHello. Effective against stateful middleboxes that perform partial reassembly."
+name = "Advanced Out-of-Order Desync (fakeddisorder midsld ttl=6)"
+description = "Sends an out-of-order fake TLS segment at midsld with TTL=6. Resilient fallback for stateful middleboxes with aggressive TCP reassembly."
 requires_backend = true
 requires_doh = true
-nfqws_args = ["--dpi-desync=fake,split2", "--dpi-desync-ttl=4"]
+nfqws_args = ["--dpi-desync=fakeddisorder", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"]
+native_split = 2
+
+[strategies.strategy_d_ttl5]
+name = "Advanced Out-of-Order Desync (fakeddisorder midsld ttl=5)"
+description = "Sends an out-of-order fake TLS segment at midsld with TTL=5."
+requires_backend = true
+requires_doh = true
+nfqws_args = ["--dpi-desync=fakeddisorder", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=5"]
+native_split = 2
+
+[strategies.strategy_split2]
+name = "Standard TCP Segmentation (multisplit split-pos=2)"
+description = "Splits the TLS ClientHello at byte 2 without fake packets. Effective against simpler stateless DPIs."
+requires_backend = true
+requires_doh = true
+nfqws_args = ["--dpi-desync=multisplit", "--dpi-desync-split-pos=2"]
+native_split = 2
+
+[strategies.strategy_fake_multisplit]
+name = "Full Fake ClientHello + Multisplit (midsld, ttl=5)"
+description = "Injects a full fake TLS ClientHello followed by multisplit at midsld with TTL=5."
+requires_backend = true
+requires_doh = true
+nfqws_args = ["--dpi-desync=fake,multisplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=5"]
 native_split = 2

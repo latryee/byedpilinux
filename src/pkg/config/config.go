@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -92,7 +93,7 @@ func DefaultConfig() *Config {
 			BlockQUIC:  false,
 		},
 		NFQWS: NFQWSConfig{
-			BinaryPath:    "/usr/local/bin/discord-bypass-nfqws",
+			BinaryPath:    "/usr/bin/discord-bypass-nfqws",
 			StrategyCArgs: []string{"--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"},
 			StrategyDArgs: []string{"--dpi-desync=fakeddisorder", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"},
 		},
@@ -105,7 +106,7 @@ func DefaultConfig() *Config {
 			APIEndpoint:     "https://discord.com/api/v9/gateway",
 			GatewayEndpoint: "wss://gateway.discord.gg",
 			CDNEndpoint:     "https://cdn.discordapp.com",
-			VoiceEndpoint:   "voice.discord.media:443",
+			VoiceEndpoint:   "latency.discord.media:443",
 		},
 		Domains: []string{
 			"discord.com",
@@ -386,3 +387,148 @@ func assignConfigValue(cfg *Config, section, key, rawVal string) {
 		}
 	}
 }
+
+// GetActiveConfigPath resolves the active configuration file path.
+func GetActiveConfigPath(specifiedPath string) string {
+	if specifiedPath != "" {
+		if _, err := os.Stat(specifiedPath); err == nil {
+			return specifiedPath
+		}
+	}
+	candidates := []string{
+		"/etc/discord-bypass/config.toml",
+		"./config/config.toml",
+		"./config.toml",
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	if specifiedPath != "" {
+		return specifiedPath
+	}
+	return "/etc/discord-bypass/config.toml"
+}
+
+// UpdateStrategyInConfig updates the active strategy in the config file atomically,
+// preserving existing comments and settings. It creates a .autobak backup file before modifying.
+func UpdateStrategyInConfig(configPath, strategyID string, customArgs []string) error {
+	target := GetActiveConfigPath(configPath)
+	data, err := os.ReadFile(target)
+	if err != nil {
+		return fmt.Errorf("failed to read config file %s: %w", target, err)
+	}
+
+	// Backup existing config
+	bakPath := target + ".autobak"
+	_ = os.WriteFile(bakPath, data, 0644)
+
+	lines := strings.Split(string(data), "\n")
+	var newLines []string
+	inGeneral := false
+	inNFQWS := false
+	strategyUpdated := false
+
+	formatArgsArray := func(args []string) string {
+		var parts []string
+		for _, a := range args {
+			parts = append(parts, fmt.Sprintf("%q", a))
+		}
+		return "[" + strings.Join(parts, ", ") + "]"
+	}
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			sec := strings.ToLower(strings.Trim(trimmed, "[] \t"))
+			inGeneral = (sec == "general")
+			inNFQWS = (sec == "nfqws")
+			newLines = append(newLines, line)
+			continue
+		}
+
+		if inGeneral && strings.HasPrefix(trimmed, "strategy") {
+			parts := strings.SplitN(trimmed, "=", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[0]) == "strategy" {
+				newLines = append(newLines, fmt.Sprintf("strategy = %q", strategyID))
+				strategyUpdated = true
+				continue
+			}
+		}
+
+		if inNFQWS && len(customArgs) > 0 && strings.HasPrefix(trimmed, "strategy_c_args") {
+			parts := strings.SplitN(trimmed, "=", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[0]) == "strategy_c_args" {
+				newLines = append(newLines, fmt.Sprintf("strategy_c_args = %s", formatArgsArray(customArgs)))
+				continue
+			}
+		}
+
+		newLines = append(newLines, line)
+	}
+
+	if !strategyUpdated {
+		var finalLines []string
+		inserted := false
+		for _, line := range newLines {
+			finalLines = append(finalLines, line)
+			trimmed := strings.TrimSpace(line)
+			if !inserted && strings.ToLower(trimmed) == "[general]" {
+				finalLines = append(finalLines, fmt.Sprintf("strategy = %q", strategyID))
+				inserted = true
+			}
+		}
+		if !inserted {
+			finalLines = append(finalLines, "[general]", fmt.Sprintf("strategy = %q", strategyID))
+		}
+		newLines = finalLines
+	}
+
+	outContent := []byte(strings.Join(newLines, "\n"))
+	dir := filepath.Dir(target)
+	tmpPath := filepath.Join(dir, fmt.Sprintf(".config-%d.tmp", time.Now().UnixNano()))
+	f, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		if os.IsPermission(err) {
+			// Directory write permission not granted, attempt direct write if target is writable
+			if writeErr := os.WriteFile(target, outContent, 0644); writeErr == nil {
+				return nil
+			}
+		}
+		return fmt.Errorf("failed creating temporary config %s: %w", tmpPath, err)
+	}
+	if _, err := f.Write(outContent); err != nil {
+		f.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed writing to %s: %w", tmpPath, err)
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed syncing %s: %w", tmpPath, err)
+	}
+	f.Close()
+
+	if err := os.Rename(tmpPath, target); err != nil {
+		_ = os.Remove(tmpPath)
+		return fmt.Errorf("failed atomically replacing %s: %w", target, err)
+	}
+
+	return nil
+}
+
+// RestoreConfigBackup restores the previous configuration from .autobak backup.
+func RestoreConfigBackup(configPath string) error {
+	target := GetActiveConfigPath(configPath)
+	bakPath := target + ".autobak"
+	data, err := os.ReadFile(bakPath)
+	if err != nil {
+		return fmt.Errorf("no config backup found at %s: %w", bakPath, err)
+	}
+	if err := os.WriteFile(target, data, 0644); err != nil {
+		return fmt.Errorf("failed restoring backup to %s: %w", target, err)
+	}
+	return nil
+}
+

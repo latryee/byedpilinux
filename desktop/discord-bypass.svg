@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGrad" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#5865F2"/>
+      <stop offset="100%" stop-color="#3C45A5"/>
+    </linearGradient>
+
+    <!-- Shield Glow -->
+    <linearGradient id="shieldGrad" x1="256" y1="110" x2="256" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.02"/>
+    </linearGradient>
+
+    <!-- Accent Gradient -->
+    <linearGradient id="accentGrad" x1="180" y1="180" x2="332" y2="332" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#57F287"/>
+      <stop offset="100%" stop-color="#23A55A"/>
+    </linearGradient>
+
+    <!-- Drop Shadow Filter -->
+    <filter id="shadow" x="32" y="32" width="448" height="456" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Rectangle with Shadow -->
+  <rect x="48" y="48" width="416" height="416" rx="96" fill="url(#bgGrad)" filter="url(#shadow)"/>
+
+  <!-- Subtle Shield Contour -->
+  <path d="M256 100 L384 150 V260 C384 340 328 400 256 424 C184 400 128 340 128 260 V150 Z" 
+        fill="url(#shieldGrad)" stroke="#FFFFFF" stroke-opacity="0.25" stroke-width="4"/>
+
+  <!-- Discord Controller Silhouette -->
+  <g transform="translate(136, 170) scale(1.0)">
+    <!-- Controller Body -->
+    <path d="M204.0 48.0 C188.0 40.5 171.0 35.0 153.0 32.0 C151.0 35.5 149.0 40.0 147.0 44.5 C128.0 41.5 109.0 41.5 90.0 44.5 C88.0 40.0 86.0 35.5 84.0 32.0 C66.0 35.0 49.0 40.5 33.0 48.0 C4.0 92.0 -4.0 135.0 1.5 177.0 C23.0 193.0 44.0 203.0 64.0 209.0 C69.0 202.0 73.5 194.5 77.5 186.5 C70.0 183.5 63.0 180.0 56.5 175.5 C58.5 174.0 60.5 172.5 62.0 171.0 C101.0 189.0 143.0 189.0 181.0 171.0 C182.5 172.5 184.5 174.0 186.5 175.5 C180.0 180.0 173.0 183.5 165.5 186.5 C169.5 194.5 174.0 202.0 179.0 209.0 C199.0 203.0 220.0 193.0 241.5 177.0 C248.0 128.0 231.0 86.0 204.0 48.0 Z" 
+          fill="#FFFFFF"/>
+
+    <!-- Left Eye -->
+    <circle cx="82" cy="122" r="19" fill="#5865F2"/>
+
+    <!-- Right Eye -->
+    <circle cx="158" cy="122" r="19" fill="#5865F2"/>
+  </g>
+
+  <!-- Bypass Unlocked Checkmark/Lightning Badge -->
+  <g transform="translate(320, 310)">
+    <!-- Badge Background Circle -->
+    <circle cx="48" cy="48" r="44" fill="#202225" stroke="#FFFFFF" stroke-width="4"/>
+    <circle cx="48" cy="48" r="38" fill="url(#accentGrad)"/>
+    <!-- Signal/Shield Checkmark Icon -->
+    <path d="M34 50 L44 60 L64 38" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

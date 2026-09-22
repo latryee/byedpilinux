@@ -1,0 +1,34 @@
+post_install() {
+    systemctl daemon-reload
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database -q /usr/share/applications || true
+    fi
+    if command -v gtk-update-icon-cache &>/dev/null; then
+        gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+    fi
+    echo "==> discord-bypass installed."
+    echo "==> Start service: sudo systemctl start discord-bypass"
+    echo "==> Or auto-tune:  sudo discord-bypass tune"
+}
+
+post_upgrade() {
+    post_install
+}
+
+pre_remove() {
+    systemctl stop discord-bypass.service 2>/dev/null || true
+    systemctl disable discord-bypass.service 2>/dev/null || true
+    if [ -x /usr/bin/discord-bypass ]; then
+        /usr/bin/discord-bypass emergency-disable 2>/dev/null || true
+    fi
+}
+
+post_remove() {
+    systemctl daemon-reload
+    if command -v update-desktop-database &>/dev/null; then
+        update-desktop-database -q /usr/share/applications || true
+    fi
+    if command -v gtk-update-icon-cache &>/dev/null; then
+        gtk-update-icon-cache -q /usr/share/icons/hicolor || true
+    fi
+}
