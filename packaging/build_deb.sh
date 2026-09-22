@@ -12,6 +12,7 @@ chmod 0755 "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/usr/local/bin"
 mkdir -p "$BUILD_DIR/etc/discord-bypass"
 mkdir -p "$BUILD_DIR/etc/systemd/system"
+mkdir -p "$BUILD_DIR/usr/share/doc/discord-bypass"
 
 # Copy DEBIAN metadata
 cp "$ROOT_DIR/packaging/debian/control" "$BUILD_DIR/DEBIAN/"
@@ -19,6 +20,9 @@ cp "$ROOT_DIR/packaging/debian/postinst" "$BUILD_DIR/DEBIAN/"
 cp "$ROOT_DIR/packaging/debian/prerm" "$BUILD_DIR/DEBIAN/"
 chmod 0755 "$BUILD_DIR/DEBIAN"
 chmod 0755 "$BUILD_DIR/DEBIAN/postinst" "$BUILD_DIR/DEBIAN/prerm"
+cp "$ROOT_DIR/packaging/debian/copyright" "$BUILD_DIR/usr/share/doc/discord-bypass/copyright"
+cp "$ROOT_DIR/THIRD_PARTY_LICENSES/zapret.txt" "$BUILD_DIR/usr/share/doc/discord-bypass/zapret-license.txt"
+chmod 0644 "$BUILD_DIR/usr/share/doc/discord-bypass/"*
 
 # Copy binaries
 cp "$ROOT_DIR/bin/discord-bypass" "$BUILD_DIR/usr/local/bin/"

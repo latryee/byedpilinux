@@ -1,5 +1,15 @@
 # discord-bypass
 
+> Development status (2026-09-22): the project now vendors `bol-van/zapret`
+> `nfqws` v72.13 at commit `87e058624c72863db53bdaf7fb6f16576dddb6ab`, and
+> the local build and unit suite pass. It is **not a production release**:
+> target-network packet capture, NFQUEUE mark-loop, systemd lifecycle, reboot,
+> package install/uninstall, IPv6, Gateway, CDN, and voice tests remain live
+> acceptance work. Statements below that assert ISP vendor behavior or strategy
+> effectiveness are historical documentation and must not be treated as verified.
+> The current configuration uses only arguments confirmed by upstream v72.13:
+> `multisplit`, `fake,multisplit`, and `--dpi-desync-split-pos=2`.
+
 A reliable, production-grade, open-source Linux application for circumventing ISP-level DNS poisoning and SNI-based Deep Packet Inspection (DPI) filtering to restore full connectivity to **Discord** (Desktop App, Web Client, Gateway WebSocket, CDN Assets, and WebRTC Voice).
 
 Designed specifically for users in **Türkiye** (Türk Telekom, Turkcell Superonline, Vodafone, TurkNet, Kablonet) and other regions where Discord connections are disrupted by middlebox firewalls.
@@ -28,8 +38,8 @@ Designed specifically for users in **Türkiye** (Türk Telekom, Turkcell Superon
 
 #### Option A: One-Line Script (Ubuntu, Debian, Zorin, Mint, Fedora, Arch)
 ```bash
-git clone https://github.com/byedpilinux/discord-bypass.git
-cd discord-bypass
+git clone https://github.com/latryee/byedpilinux.git
+cd byedpilinux
 sudo ./install.sh
 ```
 
@@ -189,8 +199,8 @@ strategy = "strategy_c"     # "strategy_a", "strategy_b", "strategy_c", "strateg
 [dns]
 mode = "doh"               # "doh", "system", "custom"
 doh_provider = "cloudflare"# "cloudflare", "google", "quad9"
-update_interval_sec = 60   # Refresh dynamic IP set every 60s
-sync_hosts = true          # Overrides ISP DNS poisoning via managed /etc/hosts entries
+update_interval_sec = 300  # Refresh dynamic IP set every 300s
+sync_hosts = false         # Handled cleanly by systemd-resolved; keep false by default
 local_dns_port = 5354      # Optional local loopback DoH DNS proxy
 
 [firewall]
@@ -206,13 +216,23 @@ block_quic = false         # False allows WebRTC voice UDP without interference
 
 ## Testing & Verification
 
-Run the automated test suite:
+Run the automated unit and dry-run test suite:
 ```bash
 make test
 ```
-Or run the full verification harness:
+
+Run the automated real host validation suite (checks packaging, nfqws, nftables loop prevention, DNS, and crash recovery):
 ```bash
-./tests/run_tests.sh
+sudo ./tests/host_validation.sh
+```
+
+Run the deterministic live strategy testing suite (systematically benchmarks candidate DPI desynchronization modes against live Discord endpoints):
+```bash
+# Test candidate 1 (fake,multisplit ttl=4 pos=2):
+sudo ./tests/live_strategy_tester.sh 1
+
+# Run complete systematic candidate sweep (15 desync modes):
+sudo ./tests/live_strategy_tester.sh --all
 ```
 
 ---

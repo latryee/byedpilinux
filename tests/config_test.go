@@ -33,6 +33,10 @@ func TestDefaultConfig(t *testing.T) {
 	if len(cfg.Domains) == 0 {
 		t.Errorf("Expected non-empty default domains list")
 	}
+
+	if cfg.DNS.SyncHosts {
+		t.Errorf("Expected SyncHosts to be false by default (systemd-resolved split-DNS is primary)")
+	}
 }
 
 func TestLoadDomains(t *testing.T) {

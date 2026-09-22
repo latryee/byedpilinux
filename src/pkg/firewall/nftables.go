@@ -13,11 +13,17 @@ import (
 )
 
 type NFTablesManager struct {
-	tableName  string
-	manageIPv6 bool
-	mu         sync.Mutex
-	active     bool
+	tableName     string
+	manageIPv6    bool
+	mu            sync.Mutex
+	active        bool
+	currentV4Nets []*net.IPNet
+	currentV6Nets []*net.IPNet
 }
+
+// NFQWSDesyncFWMark is zapret nfqws v72.13's Linux default. nfqws applies it
+// to raw injected packets so this table accepts them before its NFQUEUE rule.
+const NFQWSDesyncFWMark = "0x40000000"
 
 func NewNFTablesManager(tableName string, manageIPv6 bool) *NFTablesManager {
 	if tableName == "" {
@@ -37,23 +43,90 @@ func (m *NFTablesManager) Setup(mode string, queueNum int, proxyPort int, blockQ
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var script bytes.Buffer
+	// Normalize CIDRs to eliminate any nested/conflicting intervals
+	normV4, _, err := NormalizeCIDRs(DefaultDiscordIPv4CIDRs)
+	if err != nil {
+		return fmt.Errorf("failed to normalize IPv4 CIDRs: %w", err)
+	}
 
-	// Clean any pre-existing instance of our table
-	script.WriteString(fmt.Sprintf("add table inet %s\n", m.tableName))
-	script.WriteString(fmt.Sprintf("delete table inet %s\n", m.tableName))
-	script.WriteString(fmt.Sprintf("add table inet %s\n", m.tableName))
-
-	// Define IP sets with interval flag and pre-seeded Discord Cloudflare subnets
-	script.WriteString(fmt.Sprintf("add set inet %s discord_v4 { type ipv4_addr; flags interval; elements = { 162.159.128.0/20, 162.159.135.0/24, 162.159.136.0/24, 162.159.137.0/24, 162.159.138.0/24, 104.16.0.0/13, 104.24.0.0/14, 172.64.0.0/13, 188.114.96.0/20 }; }\n", m.tableName))
+	var normV6 []string
 	if m.manageIPv6 {
-		script.WriteString(fmt.Sprintf("add set inet %s discord_v6 { type ipv6_addr; flags interval; elements = { 2606:4700::/32 }; }\n", m.tableName))
+		_, normV6, err = NormalizeCIDRs(DefaultDiscordIPv6CIDRs)
+		if err != nil {
+			return fmt.Errorf("failed to normalize IPv6 CIDRs: %w", err)
+		}
+	}
+
+	// Cache normalized IP networks for runtime duplicate/subsumption checking
+	m.currentV4Nets = nil
+	for _, s := range normV4 {
+		if n, e := ParseCIDRorIP(s); e == nil {
+			m.currentV4Nets = append(m.currentV4Nets, n)
+		}
+	}
+	m.currentV6Nets = nil
+	for _, s := range normV6 {
+		if n, e := ParseCIDRorIP(s); e == nil {
+			m.currentV6Nets = append(m.currentV6Nets, n)
+		}
+	}
+
+	scriptStr, err := m.BuildScript(mode, queueNum, proxyPort, blockQUIC)
+	if err != nil {
+		return err
+	}
+
+	// Remove only a prior instance of our dedicated table. The subsequent
+	// script is a single nft transaction; on failure its partial table is
+	// removed below and unrelated firewall state is never touched.
+	_ = exec.Command("nft", "delete", "table", "inet", m.tableName).Run()
+
+	cmd := exec.Command("nft", "-f", "-")
+	cmd.Stdin = strings.NewReader(scriptStr)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		// Transactional rollback: cleanly remove any partially created table on failure
+		_ = exec.Command("nft", "delete", "table", "inet", m.tableName).Run()
+		m.active = false
+		m.currentV4Nets = nil
+		m.currentV6Nets = nil
+		return fmt.Errorf("nft setup failed: %s (%w)", strings.TrimSpace(string(out)), err)
+	}
+
+	m.active = true
+	utils.Info("nftables table 'inet %s' created successfully (mode=%s, block_quic=%v, v4_intervals=%d, v6_intervals=%d)",
+		m.tableName, mode, blockQUIC, len(normV4), len(normV6))
+	return nil
+}
+
+// BuildScript formats the complete nftables ruleset definition for table creation.
+func (m *NFTablesManager) BuildScript(mode string, queueNum int, proxyPort int, blockQUIC bool) (string, error) {
+	normV4, _, err := NormalizeCIDRs(DefaultDiscordIPv4CIDRs)
+	if err != nil {
+		return "", fmt.Errorf("failed to normalize IPv4 CIDRs: %w", err)
+	}
+
+	var normV6 []string
+	if m.manageIPv6 {
+		_, normV6, err = NormalizeCIDRs(DefaultDiscordIPv6CIDRs)
+		if err != nil {
+			return "", fmt.Errorf("failed to normalize IPv6 CIDRs: %w", err)
+		}
+	}
+
+	var script bytes.Buffer
+	script.WriteString(fmt.Sprintf("add table inet %s\n", m.tableName))
+	script.WriteString(fmt.Sprintf("add set inet %s discord_v4 { type ipv4_addr; flags interval; elements = { %s }; }\n", m.tableName, strings.Join(normV4, ", ")))
+	if m.manageIPv6 && len(normV6) > 0 {
+		script.WriteString(fmt.Sprintf("add set inet %s discord_v6 { type ipv6_addr; flags interval; elements = { %s }; }\n", m.tableName, strings.Join(normV6, ", ")))
 	}
 
 	if mode == "nfqueue" {
 		script.WriteString(fmt.Sprintf("add chain inet %s output { type filter hook output priority 0; policy accept; }\n", m.tableName))
+		// This must precede NFQUEUE: raw packets injected by nfqws have its
+		// upstream-supported SO_MARK and must not be queued a second time.
+		script.WriteString(fmt.Sprintf("add rule inet %s output meta mark %s counter accept\n", m.tableName, NFQWSDesyncFWMark))
 		if blockQUIC {
-			// Only drop UDP port 443 if explicitly configured via block_quic = true
 			script.WriteString(fmt.Sprintf("add rule inet %s output ip daddr @discord_v4 udp dport 443 counter drop\n", m.tableName))
 		}
 		script.WriteString(fmt.Sprintf("add rule inet %s output ip daddr @discord_v4 tcp dport 443 counter queue num %d bypass\n", m.tableName, queueNum))
@@ -71,19 +144,10 @@ func (m *NFTablesManager) Setup(mode string, queueNum int, proxyPort int, blockQ
 			script.WriteString(fmt.Sprintf("add rule inet %s output ip6 daddr @discord_v6 tcp dport 443 counter redirect to :%d\n", m.tableName, proxyPort))
 		}
 	} else {
-		return fmt.Errorf("unknown mode: %s", mode)
+		return "", fmt.Errorf("unknown mode: %s", mode)
 	}
 
-	cmd := exec.Command("nft", "-f", "-")
-	cmd.Stdin = &script
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("nft setup failed: %s (%w)", string(out), err)
-	}
-
-	m.active = true
-	utils.Info("nftables table 'inet %s' created successfully (mode=%s, block_quic=%v)", m.tableName, mode, blockQUIC)
-	return nil
+	return script.String(), nil
 }
 
 func (m *NFTablesManager) Teardown() error {
@@ -97,6 +161,8 @@ func (m *NFTablesManager) Teardown() error {
 	}
 
 	m.active = false
+	m.currentV4Nets = nil
+	m.currentV6Nets = nil
 	utils.Info("nftables table 'inet %s' removed cleanly", m.tableName)
 	return nil
 }
@@ -109,48 +175,55 @@ func (m *NFTablesManager) UpdateIPSets(v4 []net.IP, v6 []net.IP) error {
 		return fmt.Errorf("nftables table %s is not active", m.tableName)
 	}
 
-	var script bytes.Buffer
-
-	// Flush old elements first or add elements with auto-merging intervals
-	if len(v4) > 0 {
-		var v4Strs []string
-		for _, ip := range v4 {
-			if ip4 := ip.To4(); ip4 != nil {
-				v4Strs = append(v4Strs, ip4.String())
+	// Filter out any IP that is already covered by existing CIDRs to avoid conflicting intervals
+	var newV4Strs []string
+	for _, ip := range v4 {
+		if ip4 := ip.To4(); ip4 != nil {
+			if !IsCoveredIP(ip4, m.currentV4Nets) {
+				newV4Strs = append(newV4Strs, ip4.String())
+				if n, e := ParseCIDRorIP(ip4.String()); e == nil {
+					m.currentV4Nets = append(m.currentV4Nets, n)
+				}
 			}
-		}
-		if len(v4Strs) > 0 {
-			script.WriteString(fmt.Sprintf("add element inet %s discord_v4 { %s }\n", m.tableName, strings.Join(v4Strs, ", ")))
 		}
 	}
 
-	if m.manageIPv6 && len(v6) > 0 {
-		var v6Strs []string
+	var newV6Strs []string
+	if m.manageIPv6 {
 		for _, ip := range v6 {
 			if ip.To4() == nil && ip.To16() != nil {
-				v6Strs = append(v6Strs, ip.String())
+				if !IsCoveredIP(ip, m.currentV6Nets) {
+					newV6Strs = append(newV6Strs, ip.String())
+					if n, e := ParseCIDRorIP(ip.String()); e == nil {
+						m.currentV6Nets = append(m.currentV6Nets, n)
+					}
+				}
 			}
-		}
-		if len(v6Strs) > 0 {
-			script.WriteString(fmt.Sprintf("add element inet %s discord_v6 { %s }\n", m.tableName, strings.Join(v6Strs, ", ")))
 		}
 	}
 
-	if script.Len() == 0 {
+	if len(newV4Strs) == 0 && len(newV6Strs) == 0 {
 		return nil
+	}
+
+	var script bytes.Buffer
+	if len(newV4Strs) > 0 {
+		script.WriteString(fmt.Sprintf("add element inet %s discord_v4 { %s }\n", m.tableName, strings.Join(newV4Strs, ", ")))
+	}
+	if len(newV6Strs) > 0 {
+		script.WriteString(fmt.Sprintf("add element inet %s discord_v6 { %s }\n", m.tableName, strings.Join(newV6Strs, ", ")))
 	}
 
 	cmd := exec.Command("nft", "-f", "-")
 	cmd.Stdin = &script
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		// If element already exists, nft may warn or succeed depending on flags; ignore duplicate error
 		if !strings.Contains(string(out), "File exists") {
-			return fmt.Errorf("nft set update failed: %s (%w)", string(out), err)
+			return fmt.Errorf("nft set update failed: %s (%w)", strings.TrimSpace(string(out)), err)
 		}
 	}
 
-	utils.Debug("Updated nftables sets with %d IPv4 and %d IPv6 entries", len(v4), len(v6))
+	utils.Debug("Updated nftables sets: added %d new IPv4 and %d new IPv6 entries", len(newV4Strs), len(newV6Strs))
 	return nil
 }
 

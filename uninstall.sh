@@ -69,10 +69,15 @@ if [ -f /etc/hosts ] && grep -q "BEGIN DISCORD-BYPASS" /etc/hosts; then
 fi
 
 if command -v resolvectl &>/dev/null; then
+    resolvectl revert discord-dns 2>/dev/null || true
+    resolvectl revert "" 2>/dev/null || true
+    ip link del dev discord-dns 2>/dev/null || true
     DEF_IFACE=$(ip route show default 2>/dev/null | awk '{print $5}' | head -n1)
     if [ -n "$DEF_IFACE" ]; then
         resolvectl revert "$DEF_IFACE" 2>/dev/null || true
+        command -v nmcli &>/dev/null && nmcli dev reapply "$DEF_IFACE" 2>/dev/null || true
     fi
+    resolvectl flush-caches 2>/dev/null || true
 fi
 
 # Remove binaries

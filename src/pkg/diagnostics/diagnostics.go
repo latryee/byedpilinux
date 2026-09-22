@@ -511,35 +511,35 @@ func analyzeVerdict(report *DiagnosticReport) {
 	}
 
 	if !hasDNSFail && !hasTLSFail && !hasAPIFail {
-		report.OverallVerdict = "Discord Connectivity is FULLY FUNCTIONAL!"
+		report.OverallVerdict = "BYPASS VERIFIED (Discord connectivity fully functional)"
 		report.FailureStage = "None"
-		report.Recommendation = "All Discord subsystems (DNS, TLS, REST API, WebSocket Gateway, CDN) are responding properly."
+		report.Recommendation = "All Discord subsystems (DNS FIXED, TLS valid, REST API, WebSocket Gateway, CDN) are responding properly."
 		return
 	}
 
 	if hasDNSFail {
-		report.OverallVerdict = "Discord connection is BLOCKED by ISP DNS Poisoning / Sinkholing!"
+		report.OverallVerdict = "FAILED (DNS POISONED by ISP sinkhole)"
 		report.FailureStage = "DNS Resolution (BTK/ISP Sinkhole)"
 		if !hasServiceActive {
-			report.Recommendation = "Start the bypass service: 'sudo discord-bypass start'. It will synchronize clean DoH Discord IPs into /etc/hosts and configure split-DNS."
+			report.Recommendation = "Start the bypass service: 'sudo discord-bypass start'. The local Domain-Routing proxy will resolve Discord via secure DoH while preserving normal DNS."
 		} else {
-			report.Recommendation = "Service is running, but DNS poisoning is still affecting resolution. Verify sync_hosts = true in /etc/discord-bypass/config.toml and restart service."
+			report.Recommendation = "Service is running, but system DNS is returning the sinkhole. Run 'resolvectl status' to verify interface DNS is set to 127.0.0.1:5354."
 		}
 		return
 	}
 
 	if hasTLSFail {
-		report.OverallVerdict = "Discord connection is BLOCKED by ISP-Level SNI Deep Packet Inspection (DPI)!"
+		report.OverallVerdict = "FAILED (TLS SNI BLOCKED by DPI)"
 		report.FailureStage = "TLS Handshake (SNI Filtering)"
 		if !hasServiceActive {
-			report.Recommendation = "Start the bypass service: 'sudo discord-bypass start'. Strategy C (TCP segmentation split2) will bypass this block."
+			report.Recommendation = "Start the bypass service: 'sudo discord-bypass start'. Strategy C (TCP segmentation split2) will desynchronize TLS ClientHello packets."
 		} else {
-			report.Recommendation = "Bypass is active but TLS failed. Try switching strategies: run 'sudo discord-bypass switch strategy_d' or 'sudo discord-bypass autotune'."
+			report.Recommendation = "Bypass is active but TLS failed. Verify nftables rules ('sudo nft list table inet discord_bypass') and check nfqws logs."
 		}
 		return
 	}
 
-	report.OverallVerdict = "Partial Discord connectivity issues detected."
+	report.OverallVerdict = "FAILED (Application layer connectivity issue)"
 	report.FailureStage = "Application Layer"
 	report.Recommendation = "Review individual probe results above."
 }

@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"discord-bypass/src/pkg/config"
@@ -18,6 +19,7 @@ import (
 type NFQWSBackend struct {
 	cfg       *config.Config
 	cmd       *exec.Cmd
+	done      chan struct{}
 	mu        sync.Mutex
 	isRunning bool
 	cancel    context.CancelFunc
@@ -60,6 +62,7 @@ func (b *NFQWSBackend) Start(ctx context.Context) error {
 
 	subCtx, cancel := context.WithCancel(ctx)
 	b.cancel = cancel
+	b.done = make(chan struct{})
 	b.isRunning = true
 	b.mu.Unlock()
 
@@ -69,22 +72,33 @@ func (b *NFQWSBackend) Start(ctx context.Context) error {
 
 func (b *NFQWSBackend) Stop() error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	if !b.isRunning {
+		b.mu.Unlock()
 		return nil
 	}
 
 	b.isRunning = false
-	if b.cancel != nil {
-		b.cancel()
+	cmd, done, cancel := b.cmd, b.done, b.cancel
+	b.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 
-	if b.cmd != nil && b.cmd.Process != nil {
-		_ = b.cmd.Process.Signal(os.Interrupt)
-		time.Sleep(200 * time.Millisecond)
-		_ = b.cmd.Process.Kill()
+	// nfqws handles SIGTERM/SIGINT. Give it a bounded graceful-stop window,
+	// then force termination so systemd never leaves an orphan behind.
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
 	}
-
+	if done != nil {
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			if cmd != nil && cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			<-done
+		}
+	}
 	utils.Info("nfqws backend stopped")
 	return nil
 }
@@ -92,6 +106,9 @@ func (b *NFQWSBackend) Stop() error {
 func (b *NFQWSBackend) buildArgs() []string {
 	args := []string{
 		"--qnum=" + strconv.Itoa(b.cfg.Firewall.QueueNum),
+		// Confirmed in zapret v72.13 (Linux default is 0x40000000). This
+		// mark is paired with the nftables bypass rule before NFQUEUE.
+		"--dpi-desync-fwmark=0x40000000",
 	}
 
 	// Hostlist: only desync traffic for targeted domains!
@@ -114,7 +131,13 @@ func (b *NFQWSBackend) buildArgs() []string {
 	return args
 }
 
+// BuildArgs returns the slice of command-line arguments that will be passed to nfqws.
+func (b *NFQWSBackend) BuildArgs() []string {
+	return b.buildArgs()
+}
+
 func (b *NFQWSBackend) supervisorLoop(ctx context.Context, binPath string) {
+	defer close(b.done)
 	consecutiveFailures := 0
 	maxFailures := 5
 
@@ -132,7 +155,7 @@ func (b *NFQWSBackend) supervisorLoop(ctx context.Context, binPath string) {
 		}
 
 		args := b.buildArgs()
-		cmd := exec.CommandContext(ctx, binPath, args...)
+		cmd := exec.Command(binPath, args...)
 		b.cmd = cmd
 		b.mu.Unlock()
 
@@ -152,7 +175,11 @@ func (b *NFQWSBackend) supervisorLoop(ctx context.Context, binPath string) {
 				b.mu.Unlock()
 				return
 			}
-			time.Sleep(2 * time.Second)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+			}
 			continue
 		}
 
@@ -200,6 +227,10 @@ func (b *NFQWSBackend) supervisorLoop(ctx context.Context, binPath string) {
 			return
 		}
 
-		time.Sleep(1 * time.Second)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(time.Second):
+		}
 	}
 }

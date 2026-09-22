@@ -9,8 +9,8 @@ log_level = "info"
 domains_file = "/etc/discord-bypass/domains.txt"
 
 # Prefer IPv4 for Discord connections.
-# Many Turkish ISPs (Türk Telekom, Superonline) have erratic or blocked IPv6 routes for Discord.
-# Setting this to true avoids IPv6 timeouts while leaving system-wide IPv6 untouched.
+# This does not disable system IPv6. IPv6 NFQUEUE behavior should be live-tested
+# on the target network before enabling it.
 prefer_ipv4 = true
 
 # DPI evasion backend:
@@ -22,8 +22,8 @@ backend = "nfqws"
 # Selected strategy:
 # "strategy_a" - Direct connection (benchmark baseline)
 # "strategy_b" - Secure DNS only (for pure DNS blocking)
-# "strategy_c" - TCP segmentation / split2 (recommended for Turkish ISPs)
-# "strategy_d" - Advanced DPI desync (fake packet + split2 + disorder)
+# "strategy_c" - TLS SNI split (unverified on a given network until live-tested)
+# "strategy_d" - Fake + split (unverified on a given network until live-tested)
 strategy = "strategy_c"
 
 [dns]
@@ -39,12 +39,15 @@ doh_provider = "cloudflare"
 # Custom DNS IP:Port if mode = "custom"
 custom_resolver = "1.1.1.1:53"
 
+# Upstream DNS server for non-Discord domains (leave empty to auto-detect router/ISP DNS)
+upstream_dns = ""
+
 # How often (in seconds) to re-resolve Discord domains and refresh firewall IP sets
 update_interval_sec = 300
 
 # Safely sync Discord domain mappings into /etc/hosts to override ISP DNS poisoning.
-# This prevents applications from connecting to BTK/ISP block sinkholes (e.g. 195.175.254.2).
-sync_hosts = true
+# Systemd-resolved split-DNS handles resolution cleanly; keep false by default.
+sync_hosts = false
 
 # Local loopback port for the built-in Secure DNS forwarder
 local_dns_port = 5354
@@ -74,12 +77,10 @@ block_quic = false
 # Path to compiled nfqws binary
 binary_path = "/usr/local/bin/discord-bypass-nfqws"
 
-# Strategy parameters for nfqws:
-# split2: split TLS ClientHello into 2 TCP packets at byte 2
-# fake: send low-TTL fake packet before real packet
-# disorder2: send second segment first
-strategy_c_args = ["--dpi-desync=split2"]
-strategy_d_args = ["--dpi-desync=fake,split2", "--dpi-desync-ttl=4"]
+# Verified zapret v72.13 arguments; they are not claims of network effectiveness.
+# multisplit with split-pos=2 splits a TLS ClientHello at byte 2.
+strategy_c_args = ["--dpi-desync=multisplit", "--dpi-desync-split-pos=2"]
+strategy_d_args = ["--dpi-desync=fake,multisplit", "--dpi-desync-split-pos=2", "--dpi-desync-ttl=4"]
 
 [native]
 # Split position for native Go transparent proxy (2 = after TLS record version)

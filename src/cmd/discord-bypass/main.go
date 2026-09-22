@@ -76,7 +76,8 @@ func main() {
 func printHelp() {
 	fmt.Println(Banner)
 	fmt.Printf("Version: %s\n\n", Version)
-	fmt.Println("Usage: discord-bypass <subcommand> [options]\n")
+	fmt.Println("Usage: discord-bypass <subcommand> [options]")
+	fmt.Println()
 	fmt.Println("Management Commands (requires sudo):")
 	fmt.Println("  install            Install discord-bypass binaries, config, and systemd service")
 	fmt.Println("  uninstall          Completely purge discord-bypass, systemd service, and firewall rules")
@@ -87,7 +88,7 @@ func printHelp() {
 	fmt.Println("")
 	fmt.Println("Inspection & Diagnostic Commands (unprivileged):")
 	fmt.Println("  status             Display current service, backend, firewall, and traffic status")
-	fmt.Println("  test [--discord]   Verify end-to-end connectivity (DNS, TLS, REST API, firewall counters)")
+	fmt.Println("  test [--cidrs]     Verify end-to-end connectivity or inspect normalized CIDRs")
 	fmt.Println("  diagnose           Run deep 12-point diagnostic (DNS, SNI RST, API, Gateway, Voice, ISP)")
 	fmt.Println("  logs               View recent systemd service logs")
 	fmt.Println("  help               Show this help message")
@@ -121,7 +122,7 @@ func cmdStart() {
 
 func cmdStop() {
 	requireRoot()
-	if isSystemdRunning() {
+	if isSystemdRunning() && os.Getenv("INVOCATION_ID") == "" {
 		fmt.Println("Stopping discord-bypass service via systemd...")
 		_ = exec.Command("systemctl", "stop", "discord-bypass").Run()
 	}
@@ -188,19 +189,33 @@ func cmdStatus() {
 	fmt.Printf("IPv4 Preference    : %v\n", cfg.General.PreferIPv4)
 	fmt.Printf("Firewall Driver    : %s\n", fw.DriverName())
 
+	// Check DNS Poisoning status
+	isPoisoned, sysIPs, _, _, _ := dns.DetectPoisoning("discord.com", cfg.DNS.DoHProvider)
+	if isPoisoned {
+		fmt.Printf("DNS Status         : \033[31mDNS POISONED\033[0m (Resolving to sinkhole %v)\n", sysIPs)
+	} else {
+		fmt.Printf("DNS Status         : \033[32mDNS FIXED\033[0m (Resolving cleanly to %v)\n", sysIPs)
+	}
+
 	var pkts, bytes uint64
 	fwActive := fw.IsActive()
 	if fwActive {
 		pkts, bytes, _ = fw.GetStats()
-		fmt.Printf("Firewall Rules     : \033[32mACTIVE\033[0m (Traffic: %d pkts, %d bytes)\n", pkts, bytes)
+		if pkts > 0 {
+			fmt.Printf("Firewall Rules     : \033[32mFIREWALL ACTIVE (TRAFFIC INTERCEPTED)\033[0m (%d pkts, %d bytes)\n", pkts, bytes)
+		} else {
+			fmt.Printf("Firewall Rules     : \033[32mFIREWALL ACTIVE\033[0m (0 pkts yet)\n")
+		}
 	} else {
 		fmt.Printf("Firewall Rules     : \033[33mINACTIVE\033[0m\n")
 	}
 
-	if serviceActive && fwActive && pkts > 0 {
-		fmt.Printf("Bypass Health      : \033[32mOPERATIONAL (Traffic intercepted and processed)\033[0m\n")
-	} else if serviceActive {
-		fmt.Printf("Bypass Health      : \033[33mRUNNING (Unverified - 0 packets intercepted yet)\033[0m\n")
+	if serviceActive && fwActive && pkts > 0 && !isPoisoned {
+		fmt.Printf("Bypass Health      : \033[32mBYPASS VERIFIED (Traffic intercepted and processed)\033[0m\n")
+	} else if serviceActive && !isPoisoned {
+		fmt.Printf("Bypass Health      : \033[33mRUNNING (UNVERIFIED - 0 packets intercepted yet)\033[0m\n")
+	} else if serviceActive && isPoisoned {
+		fmt.Printf("Bypass Health      : \033[31mFAILED (DNS POISONED)\033[0m\n")
 	} else {
 		fmt.Printf("Bypass Health      : \033[31mSTOPPED\033[0m\n")
 	}
@@ -227,6 +242,80 @@ func cmdStatus() {
 }
 
 func cmdTest() {
+	showCIDRs := false
+	for _, a := range os.Args[2:] {
+		if a == "--cidrs" || a == "-c" {
+			showCIDRs = true
+		}
+	}
+
+	if showCIDRs {
+		fmt.Println("============================================================")
+		fmt.Println("       discord-bypass CIDR Normalization Diagnostic         ")
+		fmt.Println("============================================================")
+		fmt.Printf("Raw Default IPv4 CIDRs (%d elements):\n", len(firewall.DefaultDiscordIPv4CIDRs))
+		for _, c := range firewall.DefaultDiscordIPv4CIDRs {
+			fmt.Printf("  - %s\n", c)
+		}
+		normV4, _, err := firewall.NormalizeCIDRs(firewall.DefaultDiscordIPv4CIDRs)
+		if err != nil {
+			fmt.Printf("\n  \033[31m[FAIL]\033[0m Normalization error: %v\n", err)
+			return
+		}
+		fmt.Printf("\nNormalized Disjoint IPv4 Intervals (%d elements):\n", len(normV4))
+		for _, c := range normV4 {
+			fmt.Printf("  + %s\n", c)
+		}
+		fmt.Println("\nSubsumption Analysis:")
+		for _, raw := range firewall.DefaultDiscordIPv4CIDRs {
+			containedIn := ""
+			rawNet, _ := firewall.ParseCIDRorIP(raw)
+			for _, norm := range normV4 {
+				normNet, _ := firewall.ParseCIDRorIP(norm)
+				if raw != norm && firewall.Covers(normNet, rawNet) {
+					containedIn = norm
+					break
+				}
+			}
+			if containedIn != "" {
+				fmt.Printf("  * %-18s -> Subsumed by %s (redundant interval pruned)\n", raw, containedIn)
+			} else {
+				fmt.Printf("  * %-18s -> Retained as base interval\n", raw)
+			}
+		}
+
+		_, normV6All, _ := firewall.NormalizeCIDRs(firewall.DefaultDiscordIPv6CIDRs)
+		if len(normV6All) > 0 {
+			fmt.Printf("\nNormalized IPv6 Intervals (%d elements):\n", len(normV6All))
+			for _, c := range normV6All {
+				fmt.Printf("  + %s\n", c)
+			}
+		}
+
+		// Validate with nft -c if nft is available
+		if _, err := exec.LookPath("nft"); err == nil {
+			testScript := fmt.Sprintf("add table inet test_discord_bypass\nadd set inet test_discord_bypass s { type ipv4_addr; flags interval; elements = { %s }; }\ndelete table inet test_discord_bypass\n", strings.Join(normV4, ", "))
+			checkCmd := exec.Command("nft", "-c", "-f", "-")
+			checkCmd.Stdin = strings.NewReader(testScript)
+			out, chkErr := checkCmd.CombinedOutput()
+			if chkErr == nil {
+				fmt.Printf("\n\033[32m[OK] nftables syntax validation passed (nft -c)\033[0m\n")
+			} else if strings.Contains(string(out), "Operation not permitted") {
+				unshareCmd := exec.Command("unshare", "-r", "-n", "nft", "-c", "-f", "-")
+				unshareCmd.Stdin = strings.NewReader(testScript)
+				if uOut, uErr := unshareCmd.CombinedOutput(); uErr == nil {
+					fmt.Printf("\n\033[32m[OK] nftables syntax validation passed via unshare namespace (nft -c)\033[0m\n")
+				} else {
+					fmt.Printf("\n\033[33m[WARN]\033[0m nft -c check note: %s\n", strings.TrimSpace(string(uOut)))
+				}
+			} else {
+				fmt.Printf("\n\033[31m[FAIL]\033[0m nft -c syntax validation failed: %s\n", strings.TrimSpace(string(out)))
+			}
+		}
+		fmt.Println("============================================================")
+		return
+	}
+
 	cfg, _ := config.LoadConfig("")
 	sys, _ := utils.DetectSystem()
 	fw, _ := firewall.NewFirewallManager(cfg, sys)
@@ -352,18 +441,26 @@ func cmdTest() {
 	}
 
 	fmt.Println("\n============================================================")
-	if tlsOk && apiOk {
-		fmt.Println("\033[32mVERDICT: Discord bypass is fully verified and functional!\033[0m")
+	if isPoisoned {
+		fmt.Println("\033[31mVERDICT: FAILED (DNS POISONED by ISP sinkhole)\033[0m")
+		fmt.Println("System DNS returned sinkhole IP. Start service with: sudo discord-bypass start")
+	} else if !tlsOk {
+		fmt.Println("\033[31mVERDICT: FAILED (TLS SNI BLOCKED by DPI)\033[0m")
+		fmt.Println("TLS handshake blocked or intercepted. Check nfqws and firewall rules.")
+	} else if tlsOk && apiOk && fw != nil && fw.IsActive() {
+		fmt.Println("\033[32mVERDICT: BYPASS VERIFIED (DNS clean, TLS valid, APIs responsive, firewall active)\033[0m")
+	} else if tlsOk && apiOk {
+		fmt.Println("\033[33mVERDICT: RUNNING (UNVERIFIED - APIs responsive, check firewall counters)\033[0m")
 	} else {
-		fmt.Println("\033[31mVERDICT: Discord bypass is NOT fully functional.\033[0m")
-		fmt.Println("Run 'discord-bypass diagnose' for complete details and remediation.")
+		fmt.Println("\033[31mVERDICT: FAILED (Application layer endpoints unreachable)\033[0m")
 	}
 	fmt.Println("============================================================")
 }
 
 func cmdDiagnose() {
 	fmt.Println(Banner)
-	fmt.Println("Running comprehensive 12-point network diagnostic...\n")
+	fmt.Println("Running comprehensive 12-point network diagnostic...")
+	fmt.Println()
 
 	cfg, _ := config.LoadConfig("")
 	sys, _ := utils.DetectSystem()
@@ -408,11 +505,15 @@ func cmdEmergencyDisable() {
 	requireRoot()
 	fmt.Println("Executing emergency disable: purging all firewall rules, reverting DNS overrides, and stopping processes...")
 
-	// 1. Stop systemd service if running
-	_ = exec.Command("systemctl", "stop", "discord-bypass").Run()
+	// 1. Stop systemd service if running from interactive CLI
+	if isSystemdRunning() && os.Getenv("INVOCATION_ID") == "" {
+		_ = exec.Command("systemctl", "stop", "discord-bypass").Run()
+	}
 
 	// 2. Kill any stray daemon processes
-	_ = exec.Command("pkill", "-9", "-f", "discord-bypass daemon").Run()
+	if os.Getenv("INVOCATION_ID") == "" {
+		_ = exec.Command("pkill", "-9", "-f", "discord-bypass daemon").Run()
+	}
 	_ = exec.Command("pkill", "-9", "-f", "discord-bypass-nfqws").Run()
 	_ = exec.Command("pkill", "-9", "-f", "ciadpi").Run()
 
@@ -492,6 +593,8 @@ Description=Discord DPI Circumvention Service (discord-bypass)
 Documentation=https://github.com/byedpilinux
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=60s
+StartLimitBurst=3
 
 [Service]
 Type=simple
@@ -499,11 +602,19 @@ ExecStart=/usr/local/bin/discord-bypass daemon
 ExecStop=/usr/local/bin/discord-bypass emergency-disable
 Restart=on-failure
 RestartSec=3s
-StartLimitIntervalSec=60s
-StartLimitBurst=5
+TimeoutStopSec=10s
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
 CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/etc/discord-bypass /etc/hosts
 LimitNOFILE=65535
+
+# Structured Journal Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=discord-bypass
 
 [Install]
 WantedBy=multi-user.target
@@ -616,21 +727,26 @@ func cmdDaemon() {
 		utils.Info("Dynamic DoH resolver and IP set updater started (%s, sync_hosts=%v)", cfg.DNS.DoHProvider, cfg.DNS.SyncHosts)
 	}
 
-	// 4. Start local DNS proxy and configure systemd-resolved split-DNS if configured
+	// 4. Start local domain-routing DNS proxy and configure systemd-resolved
 	var dnsProxy *dns.DNSProxy
 	if cfg.DNS.LocalDNSPort > 0 {
 		listenAddr := fmt.Sprintf("127.0.0.1:%d", cfg.DNS.LocalDNSPort)
-		dnsProxy = dns.NewDNSProxy(listenAddr, cfg.DNS.DoHProvider, cfg.General.PreferIPv4)
+		defaultIface := ""
+		if sys != nil {
+			defaultIface = sys.DefaultInterface
+		}
+		upstreamDNS := cfg.DNS.UpstreamDNS
+		if upstreamDNS == "" && defaultIface != "" {
+			upstreamDNS = dns.GetInterfaceDNS(defaultIface)
+		}
+
+		dnsProxy = dns.NewDNSProxy(listenAddr, cfg.DNS.DoHProvider, cfg.General.PreferIPv4, upstreamDNS, cfg.Domains)
 		if err := dnsProxy.Start(ctx); err != nil {
 			utils.Warn("Failed to start local DNS proxy on %s: %v", listenAddr, err)
 		} else {
-			utils.Info("Local loopback DNS proxy listening on %s", listenAddr)
-			defaultIface := ""
-			if sys != nil {
-				defaultIface = sys.DefaultInterface
-			}
+			utils.Info("Local loopback DNS proxy listening on %s (upstream: %s)", listenAddr, dnsProxy.UpstreamDNS())
 			if err := dns.ConfigureSystemdResolved(defaultIface, listenAddr); err != nil {
-				utils.Debug("systemd-resolved routing domain config note: %v", err)
+				utils.Debug("systemd-resolved configuration note: %v", err)
 			}
 		}
 	}

@@ -50,12 +50,25 @@ func ApplyDiscordHosts(domainToIP map[string]net.IP) error {
 	// Write atomically using temporary file in /etc
 	tmpPath := HostsFilePath + ".tmp.discord-bypass"
 	if err := os.WriteFile(tmpPath, []byte(finalContent), 0644); err != nil {
-		return fmt.Errorf("failed to write tmp hosts file: %w", err)
+		// If /etc directory is mounted read-only (e.g. systemd ProtectSystem=full), try direct in-place write
+		if wErr := os.WriteFile(HostsFilePath, []byte(finalContent), 0644); wErr == nil {
+			utils.Info("Updated %s directly with %d secure Discord IP mappings", HostsFilePath, len(domainToIP))
+			return nil
+		}
+		// Non-fatal: log informative note and continue (split-DNS handles resolution)
+		utils.Debug("Cannot write %s (%v); skipping hosts sync (split-DNS remains active)", HostsFilePath, err)
+		return nil
 	}
 
 	if err := os.Rename(tmpPath, HostsFilePath); err != nil {
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("failed to replace %s: %w", HostsFilePath, err)
+		// If rename fails (e.g. read-only directory), try in-place write
+		if wErr := os.WriteFile(HostsFilePath, []byte(finalContent), 0644); wErr == nil {
+			utils.Info("Updated %s directly with %d secure Discord IP mappings", HostsFilePath, len(domainToIP))
+			return nil
+		}
+		utils.Debug("Cannot replace %s (%v); skipping hosts sync (split-DNS remains active)", HostsFilePath, err)
+		return nil
 	}
 
 	utils.Info("Updated %s with %d secure Discord IP mappings", HostsFilePath, len(domainToIP))
@@ -72,7 +85,7 @@ func RemoveDiscordHosts() error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return err
+		return nil
 	}
 
 	cleaned := removeTaggedBlock(string(data))
@@ -83,12 +96,22 @@ func RemoveDiscordHosts() error {
 
 	tmpPath := HostsFilePath + ".tmp.discord-bypass"
 	if err := os.WriteFile(tmpPath, []byte(cleaned), 0644); err != nil {
-		return err
+		if wErr := os.WriteFile(HostsFilePath, []byte(cleaned), 0644); wErr == nil {
+			utils.Info("Cleanly removed discord-bypass entries from %s", HostsFilePath)
+			return nil
+		}
+		utils.Debug("Cannot remove entries from %s: %v (skipping)", HostsFilePath, err)
+		return nil
 	}
 
 	if err := os.Rename(tmpPath, HostsFilePath); err != nil {
 		_ = os.Remove(tmpPath)
-		return err
+		if wErr := os.WriteFile(HostsFilePath, []byte(cleaned), 0644); wErr == nil {
+			utils.Info("Cleanly removed discord-bypass entries from %s", HostsFilePath)
+			return nil
+		}
+		utils.Debug("Cannot replace %s on cleanup: %v (skipping)", HostsFilePath, err)
+		return nil
 	}
 
 	utils.Info("Cleanly removed discord-bypass entries from %s", HostsFilePath)

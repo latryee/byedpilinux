@@ -3,7 +3,7 @@ Version: 1.0.0
 Section: net
 Priority: optional
 Architecture: amd64
-Depends: libc6, nftables | iptables, libnetfilter-queue1, libmnl0
+Depends: libc6, nftables | iptables, libnetfilter-queue1, libnfnetlink0, libmnl0, zlib1g
 Maintainer: Discord Bypass Team <support@discord-bypass.local>
 Description: Linux DPI circumvention tool optimized for Discord
  A high-performance, maintainable Linux application that bypasses

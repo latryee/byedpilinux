@@ -32,6 +32,7 @@ type DNSConfig struct {
 	Mode              string `json:"mode"`
 	DoHProvider       string `json:"doh_provider"`
 	CustomResolver    string `json:"custom_resolver"`
+	UpstreamDNS       string `json:"upstream_dns"`
 	UpdateIntervalSec int    `json:"update_interval_sec"`
 	SyncHosts         bool   `json:"sync_hosts"`
 	LocalDNSPort      int    `json:"local_dns_port"`
@@ -79,7 +80,7 @@ func DefaultConfig() *Config {
 			DoHProvider:       "cloudflare",
 			CustomResolver:    "1.1.1.1:53",
 			UpdateIntervalSec: 300,
-			SyncHosts:         true,
+			SyncHosts:         false,
 			LocalDNSPort:      5354,
 		},
 		Firewall: FirewallConfig{
@@ -92,8 +93,8 @@ func DefaultConfig() *Config {
 		},
 		NFQWS: NFQWSConfig{
 			BinaryPath:    "/usr/local/bin/discord-bypass-nfqws",
-			StrategyCArgs: []string{"--dpi-desync=split2"},
-			StrategyDArgs: []string{"--dpi-desync=fake,split2", "--dpi-desync-ttl=4"},
+			StrategyCArgs: []string{"--dpi-desync=multisplit", "--dpi-desync-split-pos=2"},
+			StrategyDArgs: []string{"--dpi-desync=fake,multisplit", "--dpi-desync-split-pos=2", "--dpi-desync-ttl=4"},
 		},
 		Native: NativeConfig{
 			SplitPos:     2,
@@ -289,6 +290,8 @@ func assignConfigValue(cfg *Config, section, key, rawVal string) {
 			cfg.DNS.DoHProvider = cleanStr
 		case "custom_resolver":
 			cfg.DNS.CustomResolver = cleanStr
+		case "upstream_dns":
+			cfg.DNS.UpstreamDNS = cleanStr
 		case "update_interval_sec":
 			if intVal > 0 {
 				cfg.DNS.UpdateIntervalSec = intVal
