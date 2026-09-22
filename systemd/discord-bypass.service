@@ -3,8 +3,8 @@ Description=Discord DPI Circumvention Service (discord-bypass)
 Documentation=https://github.com/latryee/byedpilinux
 After=network-online.target
 Wants=network-online.target
-StartLimitIntervalSec=60s
-StartLimitBurst=3
+StartLimitIntervalSec=10s
+StartLimitBurst=20
 
 [Service]
 Type=simple

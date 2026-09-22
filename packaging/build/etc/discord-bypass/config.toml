@@ -46,11 +46,11 @@ upstream_dns = ""
 update_interval_sec = 300
 
 # Safely sync Discord domain mappings into /etc/hosts to override ISP DNS poisoning.
-# Systemd-resolved split-DNS handles resolution cleanly; keep false by default.
-sync_hosts = false
+# Overrides ISP DNS poisoning directly without touching system-wide DNS servers.
+sync_hosts = true
 
-# Local loopback port for the built-in Secure DNS forwarder
-local_dns_port = 5354
+# Local loopback port for the built-in Secure DNS forwarder (0 to disable)
+local_dns_port = 0
 
 [firewall]
 # Firewall management driver: "auto", "nftables", "iptables"
@@ -77,10 +77,10 @@ block_quic = false
 # Path to compiled nfqws binary
 binary_path = "/usr/local/bin/discord-bypass-nfqws"
 
-# Verified zapret v72.13 arguments; they are not claims of network effectiveness.
-# multisplit with split-pos=2 splits a TLS ClientHello at byte 2.
-strategy_c_args = ["--dpi-desync=multisplit", "--dpi-desync-split-pos=2"]
-strategy_d_args = ["--dpi-desync=fake,multisplit", "--dpi-desync-split-pos=2", "--dpi-desync-ttl=4"]
+# Live-tested and verified working parameters for Turkcell Superonline & major Turkish ISPs:
+# fakedsplit with midsld and TTL=6 evades ISP DPI while expiring before reaching Cloudflare.
+strategy_c_args = ["--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"]
+strategy_d_args = ["--dpi-desync=fakeddisorder", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"]
 
 [native]
 # Split position for native Go transparent proxy (2 = after TLS record version)

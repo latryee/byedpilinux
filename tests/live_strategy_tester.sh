@@ -20,22 +20,27 @@ if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
     echo "  sudo ./tests/live_strategy_tester.sh --all"
     echo "  sudo ./tests/live_strategy_tester.sh --single \"Name\" \"arg1\" \"arg2\" ..."
     echo ""
-    echo "Candidates:"
-    echo "  1  : fake,multisplit (pos=2, ttl=4) [First required test]"
-    echo "  2  : fake,multisplit (pos=2, ttl=3)"
-    echo "  3  : fake,multisplit (pos=2, ttl=5)"
-    echo "  4  : fake,multisplit (pos=2, badsum)"
-    echo "  5  : fake,multisplit (pos=2, badseq)"
-    echo "  6  : multisplit (midsld)"
-    echo "  7  : multisplit (sniext+2, midsld)"
-    echo "  8  : multidisorder (pos=2)"
-    echo "  9  : multidisorder (midsld)"
-    echo "  10 : fake,multidisorder (pos=2, ttl=4)"
-    echo "  11 : fake,multidisorder (midsld, ttl=4)"
-    echo "  12 : fake,multidisorder (midsld, badsum)"
-    echo "  13 : fake (badsum)"
-    echo "  14 : fake (ttl=4)"
-    echo "  15 : ipfrag2"
+    echo "Candidates (fakedsplit, fakeddisorder & fake,multisplit for Superonline):"
+    echo "  1  : fakedsplit (midsld, ttl=5) [DPI bypassed, fake segment expires before Cloudflare]"
+    echo "  2  : fakedsplit (midsld, ttl=4) [Fake segment expires at hop 4]"
+    echo "  3  : fakedsplit (midsld, ttl=6) [Fake segment expires at hop 6]"
+    echo "  4  : fakedsplit (midsld, ttl=3) [Fake segment expires at hop 3]"
+    echo "  5  : fakedsplit (midsld, badsum) [Fake segment dropped by Cloudflare via bad checksum]"
+    echo "  6  : fakedsplit (midsld, badseq) [Fake segment dropped by Cloudflare via bad sequence]"
+    echo "  7  : fakedsplit (midsld, seqovl=16, ttl=5) [Fake segment + 16-byte sequence overlap]"
+    echo "  8  : fakedsplit (midsld, seqovl=16, ttl=4) [Fake segment + 16-byte sequence overlap, TTL=4]"
+    echo "  9  : fakeddisorder (midsld, ttl=5) [Out-of-order fake split with TTL=5]"
+    echo "  10 : fakeddisorder (midsld, ttl=4) [Out-of-order fake split with TTL=4]"
+    echo "  11 : fakeddisorder (midsld, ttl=6) [Out-of-order fake split with TTL=6]"
+    echo "  12 : fakeddisorder (midsld, badsum) [Out-of-order fake split with badsum]"
+    echo "  13 : fakedsplit (pos=2, ttl=5) [TLS record header fake split with TTL=5]"
+    echo "  14 : fakedsplit (pos=2, ttl=4) [TLS record header fake split with TTL=4]"
+    echo "  15 : fake,multisplit (midsld, ttl=5) [Full fake ClientHello + multisplit at midsld]"
+    echo "  16 : fake,multisplit (midsld, ttl=4) [Full fake ClientHello + multisplit at midsld, TTL=4]"
+    echo "  17 : fake,multisplit (pos=2, ttl=5) [Full fake ClientHello + multisplit at pos=2]"
+    echo "  18 : fake,multisplit (pos=2, ttl=4) [Full fake ClientHello + multisplit at pos=2, TTL=4]"
+    echo "  19 : fakedsplit (sniext+2, ttl=5) [SNI extension header fake split with TTL=5]"
+    echo "  20 : fakeddisorder (pos=2, ttl=5) [Out-of-order pos=2 with TTL=5]"
     exit 0
 fi
 
@@ -63,9 +68,19 @@ cleanup() {
     if [ -f "$BACKUP_FILE" ]; then
         cp "$BACKUP_FILE" "$CONFIG_FILE"
         rm -f "$BACKUP_FILE"
-        systemctl restart discord-bypass || true
-        echo -e "${GREEN}Configuration cleanly restored.${NC}"
     fi
+    # Always guarantee local_dns_port is 0 and sync_hosts is true in restored config
+    sed -i -E 's|^local_dns_port\s*=.*|local_dns_port = 0|' "$CONFIG_FILE" 2>/dev/null || true
+    sed -i -E 's|^sync_hosts\s*=.*|sync_hosts = true|' "$CONFIG_FILE" 2>/dev/null || true
+
+    systemctl reset-failed discord-bypass || true
+    systemctl restart discord-bypass || true
+
+    # Call fix_dns.sh automatically
+    if [ -f "$ROOT_DIR/fix_dns.sh" ]; then
+        "$ROOT_DIR/fix_dns.sh" >/dev/null 2>&1 || true
+    fi
+    echo -e "${GREEN}Configuration cleanly restored. DNS is using native router default.${NC}"
 }
 trap cleanup EXIT INT TERM
 
@@ -108,9 +123,12 @@ test_candidate() {
     # Write temporary config using sed
     sed -i -E "s|^strategy\s*=.*|strategy = \"strategy_c\"|" "$CONFIG_FILE"
     sed -i -E "s|^strategy_c_args\s*=.*|strategy_c_args = $toml_array|" "$CONFIG_FILE"
+    sed -i -E "s|^sync_hosts\s*=.*|sync_hosts = true|" "$CONFIG_FILE"
+    sed -i -E "s|^local_dns_port\s*=.*|local_dns_port = 0|" "$CONFIG_FILE"
 
-    # Restart service cleanly
-    systemctl restart discord-bypass
+    # Reset any rate limits and restart service cleanly
+    systemctl reset-failed discord-bypass || true
+    systemctl restart discord-bypass || true
     sleep 1.8
 
     # 1. Check if nfqws starts
@@ -134,11 +152,11 @@ test_candidate() {
     init_chain=$(nft -a list chain inet discord_bypass output 2>/dev/null || echo "")
     q_pre=$(echo "$init_chain" | grep "queue flags bypass" | grep -o "packets [0-9]*" | awk '{print $2}' || echo 0)
 
-    # 3. Test TLS connection to discord.com
-    echo "  Testing TLS handshake: curl -v --connect-timeout 5 --max-time 15 https://discord.com ..."
+    # 3. Test TLS connection to discord.com (pinned to authentic Cloudflare Discord IP)
+    echo "  Testing TLS handshake: curl -v --resolve discord.com:443:162.159.137.232 https://discord.com ..."
     local tls_out tls_code tls_ok="NO"
     set +e
-    tls_out=$(curl -s -I -v --connect-timeout 5 --max-time 15 https://discord.com 2>&1)
+    tls_out=$(curl -s -I -v --connect-timeout 5 --max-time 15 --resolve discord.com:443:162.159.137.232 https://discord.com 2>&1)
     tls_code=$?
     set -e
 
@@ -161,17 +179,20 @@ test_candidate() {
         echo -e "  ${GREEN}[PASS] TLS Handshake succeeded!${NC} ($http_status)"
     else
         local err_summary
-        err_summary=$(echo "$tls_out" | grep -E "(Recv failure|Connection reset|timed out|SSL_connect)" | head -n1 || echo "curl exit code $tls_code")
+        err_summary=$(echo "$tls_out" | grep -E "(Recv failure|Connection reset|timed out|SSL_connect|alert decode|alert handshake|error:)" | head -n1 || echo "")
+        if [ -z "$err_summary" ]; then
+            err_summary=$(echo "$tls_out" | grep -E "^\* " | tail -n2 | tr '\n' ' ' || echo "curl exit code $tls_code")
+        fi
         echo -e "  ${RED}[FAIL] TLS Handshake blocked:${NC} $err_summary"
     fi
 
     # 4. Test REST API if TLS passed
     local rest_ok="NO"
     if [ "$tls_ok" = "YES" ]; then
-        echo "  Testing REST API: curl -v --connect-timeout 5 --max-time 15 https://discord.com/api/v10/gateway ..."
+        echo "  Testing REST API: curl -v --resolve discord.com:443:162.159.137.232 https://discord.com/api/v10/gateway ..."
         local rest_out rest_code
         set +e
-        rest_out=$(curl -s -I -v --connect-timeout 5 --max-time 15 https://discord.com/api/v10/gateway 2>&1)
+        rest_out=$(curl -s -I -v --connect-timeout 5 --max-time 15 --resolve discord.com:443:162.159.137.232 https://discord.com/api/v10/gateway 2>&1)
         rest_code=$?
         set -e
         if echo "$rest_out" | grep -qE "HTTP/[12](\.[0-9])? (200|401|429)"; then
@@ -181,7 +202,10 @@ test_candidate() {
             echo -e "  ${GREEN}[PASS] REST API reachable!${NC} ($rest_status)"
         else
             local rest_err
-            rest_err=$(echo "$rest_out" | grep -E "(Recv failure|Connection reset|timed out)" | head -n1 || echo "curl code $rest_code")
+            rest_err=$(echo "$rest_out" | grep -E "(Recv failure|Connection reset|timed out|SSL_connect|alert|error:)" | head -n1 || echo "")
+            if [ -z "$rest_err" ]; then
+                rest_err=$(echo "$rest_out" | grep -E "^\* " | tail -n2 | tr '\n' ' ' || echo "curl code $rest_code")
+            fi
             echo -e "  ${RED}[FAIL] REST API failed:${NC} $rest_err"
         fi
     fi
@@ -223,68 +247,88 @@ run_candidate_by_num() {
     local num="$1"
     case "$num" in
         1)
-            test_candidate "fake,multisplit (pos=2, ttl=4)" \
-                "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=4" || true
+            test_candidate "fakedsplit (midsld, ttl=5)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=5" || true
             ;;
         2)
-            test_candidate "fake,multisplit (pos=2, ttl=3)" \
-                "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=3" || true
+            test_candidate "fakedsplit (midsld, ttl=4)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=4" || true
             ;;
         3)
+            test_candidate "fakedsplit (midsld, ttl=6)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=6" || true
+            ;;
+        4)
+            test_candidate "fakedsplit (midsld, ttl=3)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=3" || true
+            ;;
+        5)
+            test_candidate "fakedsplit (midsld, badsum)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-fooling=badsum" || true
+            ;;
+        6)
+            test_candidate "fakedsplit (midsld, badseq)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-fooling=badseq" || true
+            ;;
+        7)
+            test_candidate "fakedsplit (midsld, seqovl=16, ttl=5)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-split-seqovl=16" "--dpi-desync-ttl=5" || true
+            ;;
+        8)
+            test_candidate "fakedsplit (midsld, seqovl=16, ttl=4)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-split-seqovl=16" "--dpi-desync-ttl=4" || true
+            ;;
+        9)
+            test_candidate "fakeddisorder (midsld, ttl=5)" \
+                "--dpi-desync=fakeddisorder" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=5" || true
+            ;;
+        10)
+            test_candidate "fakeddisorder (midsld, ttl=4)" \
+                "--dpi-desync=fakeddisorder" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=4" || true
+            ;;
+        11)
+            test_candidate "fakeddisorder (midsld, ttl=6)" \
+                "--dpi-desync=fakeddisorder" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=6" || true
+            ;;
+        12)
+            test_candidate "fakeddisorder (midsld, badsum)" \
+                "--dpi-desync=fakeddisorder" "--dpi-desync-split-pos=midsld" "--dpi-desync-fooling=badsum" || true
+            ;;
+        13)
+            test_candidate "fakedsplit (pos=2, ttl=5)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=5" || true
+            ;;
+        14)
+            test_candidate "fakedsplit (pos=2, ttl=4)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=4" || true
+            ;;
+        15)
+            test_candidate "fake,multisplit (midsld, ttl=5)" \
+                "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=5" || true
+            ;;
+        16)
+            test_candidate "fake,multisplit (midsld, ttl=4)" \
+                "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=4" || true
+            ;;
+        17)
             test_candidate "fake,multisplit (pos=2, ttl=5)" \
                 "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=5" || true
             ;;
-        4)
-            test_candidate "fake,multisplit (pos=2, badsum)" \
-                "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=2" "--dpi-desync-fooling=badsum" || true
+        18)
+            test_candidate "fake,multisplit (pos=2, ttl=4)" \
+                "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=4" || true
             ;;
-        5)
-            test_candidate "fake,multisplit (pos=2, badseq)" \
-                "--dpi-desync=fake,multisplit" "--dpi-desync-split-pos=2" "--dpi-desync-fooling=badseq" || true
+        19)
+            test_candidate "fakedsplit (sniext+2, ttl=5)" \
+                "--dpi-desync=fakedsplit" "--dpi-desync-split-pos=sniext+2" "--dpi-desync-ttl=5" || true
             ;;
-        6)
-            test_candidate "multisplit (midsld)" \
-                "--dpi-desync=multisplit" "--dpi-desync-split-pos=midsld" || true
-            ;;
-        7)
-            test_candidate "multisplit (sniext+2, midsld)" \
-                "--dpi-desync=multisplit" "--dpi-desync-split-pos=sniext+2,midsld" || true
-            ;;
-        8)
-            test_candidate "multidisorder (pos=2)" \
-                "--dpi-desync=multidisorder" "--dpi-desync-split-pos=2" || true
-            ;;
-        9)
-            test_candidate "multidisorder (midsld)" \
-                "--dpi-desync=multidisorder" "--dpi-desync-split-pos=midsld" || true
-            ;;
-        10)
-            test_candidate "fake,multidisorder (pos=2, ttl=4)" \
-                "--dpi-desync=fake,multidisorder" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=4" || true
-            ;;
-        11)
-            test_candidate "fake,multidisorder (midsld, ttl=4)" \
-                "--dpi-desync=fake,multidisorder" "--dpi-desync-split-pos=midsld" "--dpi-desync-ttl=4" || true
-            ;;
-        12)
-            test_candidate "fake,multidisorder (midsld, badsum)" \
-                "--dpi-desync=fake,multidisorder" "--dpi-desync-split-pos=midsld" "--dpi-desync-fooling=badsum" || true
-            ;;
-        13)
-            test_candidate "fake (badsum)" \
-                "--dpi-desync=fake" "--dpi-desync-fooling=badsum" || true
-            ;;
-        14)
-            test_candidate "fake (ttl=4)" \
-                "--dpi-desync=fake" "--dpi-desync-ttl=4" || true
-            ;;
-        15)
-            test_candidate "ipfrag2" \
-                "--dpi-desync=ipfrag2" || true
+        20)
+            test_candidate "fakeddisorder (pos=2, ttl=5)" \
+                "--dpi-desync=fakeddisorder" "--dpi-desync-split-pos=2" "--dpi-desync-ttl=5" || true
             ;;
         *)
             echo -e "${RED}Unknown candidate number: $num${NC}"
-            echo "Available numbers: 1 to 15, or --all"
+            echo "Available numbers: 1 to 20, or --all"
             return 1
             ;;
     esac
@@ -304,8 +348,8 @@ if [ "$MODE" = "--single" ]; then
 fi
 
 if [ "$MODE" = "--all" ]; then
-    echo "Running complete systematic strategy sweep (15 candidates)..."
-    for c in {1..15}; do
+    echo "Running complete systematic strategy sweep (20 candidates)..."
+    for c in {1..20}; do
         run_candidate_by_num "$c" || true
     done
     print_summary_table

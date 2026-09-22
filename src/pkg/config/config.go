@@ -80,8 +80,8 @@ func DefaultConfig() *Config {
 			DoHProvider:       "cloudflare",
 			CustomResolver:    "1.1.1.1:53",
 			UpdateIntervalSec: 300,
-			SyncHosts:         false,
-			LocalDNSPort:      5354,
+			SyncHosts:         true,
+			LocalDNSPort:      0,
 		},
 		Firewall: FirewallConfig{
 			Driver:     "auto",
@@ -93,8 +93,8 @@ func DefaultConfig() *Config {
 		},
 		NFQWS: NFQWSConfig{
 			BinaryPath:    "/usr/local/bin/discord-bypass-nfqws",
-			StrategyCArgs: []string{"--dpi-desync=multisplit", "--dpi-desync-split-pos=2"},
-			StrategyDArgs: []string{"--dpi-desync=fake,multisplit", "--dpi-desync-split-pos=2", "--dpi-desync-ttl=4"},
+			StrategyCArgs: []string{"--dpi-desync=fakedsplit", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"},
+			StrategyDArgs: []string{"--dpi-desync=fakeddisorder", "--dpi-desync-split-pos=midsld", "--dpi-desync-ttl=6"},
 		},
 		Native: NativeConfig{
 			SplitPos:     2,
@@ -256,14 +256,41 @@ func assignConfigValue(cfg *Config, section, key, rawVal string) {
 	intVal, _ := strconv.Atoi(cleanStr)
 
 	parseStringArray := func(v string) []string {
+		v = strings.TrimSpace(v)
 		v = strings.Trim(v, "[]")
-		items := strings.Split(v, ",")
 		var res []string
-		for _, it := range items {
-			trimmed := strings.Trim(strings.TrimSpace(it), "\"")
-			if trimmed != "" {
-				res = append(res, trimmed)
+		var cur strings.Builder
+		inQuotes := false
+		escaped := false
+
+		for i := 0; i < len(v); i++ {
+			c := v[i]
+			if escaped {
+				cur.WriteByte(c)
+				escaped = false
+				continue
 			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c == '"' {
+				inQuotes = !inQuotes
+				continue
+			}
+			if c == ',' && !inQuotes {
+				item := strings.TrimSpace(cur.String())
+				if item != "" {
+					res = append(res, item)
+				}
+				cur.Reset()
+				continue
+			}
+			cur.WriteByte(c)
+		}
+		item := strings.TrimSpace(cur.String())
+		if item != "" {
+			res = append(res, item)
 		}
 		return res
 	}
@@ -299,7 +326,7 @@ func assignConfigValue(cfg *Config, section, key, rawVal string) {
 		case "sync_hosts":
 			cfg.DNS.SyncHosts = boolVal
 		case "local_dns_port":
-			if intVal > 0 {
+			if intVal >= 0 {
 				cfg.DNS.LocalDNSPort = intVal
 			}
 		}

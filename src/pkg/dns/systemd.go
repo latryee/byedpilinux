@@ -51,14 +51,14 @@ func ConfigureSystemdResolved(iface string, proxyAddr string) error {
 		return fmt.Errorf("resolvectl dns on %s failed: %s (%w)", iface, strings.TrimSpace(string(out)), err)
 	}
 
-	// 4. Ensure default routing domain (~.) is maintained so all lookups flow through the proxy
-	_ = exec.Command("resolvectl", "domain", iface, "~.").Run()
-	_ = exec.Command("resolvectl", "default-route", iface, "true").Run()
+	// 4. Route only Discord domains through the proxy (split-DNS, never hijack system-wide ~.)
+	_ = exec.Command("resolvectl", "domain", iface,
+		"~discord.com", "~discordapp.com", "~discord.gg", "~discordapp.net", "~discord.media", "~discordstatus.com").Run()
 
 	// 5. Flush caches to eliminate poisoned records immediately
 	_ = exec.Command("resolvectl", "flush-caches").Run()
 
-	utils.Info("Configured systemd-resolved on interface %s -> %s (Upstream preserved: %s)",
+	utils.Info("Configured systemd-resolved on interface %s -> %s for Discord domains (Upstream preserved: %s)",
 		iface, proxyAddr, origDNS)
 	return nil
 }
@@ -67,6 +67,15 @@ func ConfigureSystemdResolved(iface string, proxyAddr string) error {
 // and removes any temporary state or interfaces.
 func RevertSystemdResolved(iface string) error {
 	if _, err := exec.LookPath("resolvectl"); err != nil {
+		return nil
+	}
+
+	// CRITICAL SAFETY GUARD:
+	// If DNSStateFile does not exist, discord-bypass NEVER modified systemd-resolved!
+	// Calling 'resolvectl revert <link>' blindly on Ubuntu/Debian/Zorin wipes the interface's
+	// DHCP DNS server list and breaks system-wide internet completely!
+	if _, err := os.Stat(DNSStateFile); os.IsNotExist(err) {
+		cleanLegacyInterface()
 		return nil
 	}
 
@@ -86,29 +95,24 @@ func RevertSystemdResolved(iface string) error {
 		}
 	}
 
-	// 2. Revert resolvectl on the interface
+	// Fallback to router default gateway DNS if origDNS is somehow empty
+	if origDNS == "" {
+		origDNS = getRouterDNS()
+	}
+
+	// 2. Revert resolvectl on the interface and explicitly assign origDNS
 	if iface != "" {
 		_ = exec.Command("resolvectl", "revert", iface).Run()
 		if origDNS != "" && !strings.Contains(origDNS, "5354") {
 			_ = exec.Command("resolvectl", "dns", iface, origDNS).Run()
-		}
-
-		// Re-apply NetworkManager settings to ensure DHCP DNS is restored
-		if _, err := exec.LookPath("nmcli"); err == nil {
-			_ = exec.Command("nmcli", "dev", "reapply", iface).Run()
+			_ = exec.Command("resolvectl", "default-route", iface, "true").Run()
+			_ = exec.Command("resolvectl", "domain", iface, "").Run()
 		}
 	}
 
 	// 3. Clean any global overrides
-	if out, err := exec.Command("resolvectl", "dns").CombinedOutput(); err == nil {
-		lines := strings.Split(string(out), "\n")
-		for _, l := range lines {
-			if strings.HasPrefix(l, "Global:") && strings.Contains(l, "5354") {
-				_ = exec.Command("resolvectl", "revert", "").Run()
-				break
-			}
-		}
-	}
+	_ = exec.Command("resolvectl", "revert", "").Run()
+	_ = exec.Command("resolvectl", "dns", "", "").Run()
 
 	// 4. Clean up legacy dummy interface if present
 	cleanLegacyInterface()
@@ -119,8 +123,21 @@ func RevertSystemdResolved(iface string) error {
 	// 6. Flush caches
 	_ = exec.Command("resolvectl", "flush-caches").Run()
 
-	utils.Info("Reverted systemd-resolved DNS configuration to default on %s", iface)
+	utils.Info("Safely restored systemd-resolved DNS configuration on %s (DNS: %s)", iface, origDNS)
 	return nil
+}
+
+func getRouterDNS() string {
+	out, err := exec.Command("ip", "route", "show", "default").Output()
+	if err == nil {
+		fields := strings.Fields(string(out))
+		for i, f := range fields {
+			if f == "via" && i+1 < len(fields) {
+				return fields[i+1]
+			}
+		}
+	}
+	return "192.168.1.1"
 }
 
 // GetInterfaceDNS queries resolvectl for the current DNS server of an interface

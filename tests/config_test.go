@@ -34,8 +34,45 @@ func TestDefaultConfig(t *testing.T) {
 		t.Errorf("Expected non-empty default domains list")
 	}
 
-	if cfg.DNS.SyncHosts {
-		t.Errorf("Expected SyncHosts to be false by default (systemd-resolved split-DNS is primary)")
+	if !cfg.DNS.SyncHosts {
+		t.Errorf("Expected SyncHosts to be true by default")
+	}
+
+	if cfg.DNS.LocalDNSPort != 0 {
+		t.Errorf("Expected LocalDNSPort to be 0 by default, got %d", cfg.DNS.LocalDNSPort)
+	}
+}
+
+func TestTOMLArrayWithCommas(t *testing.T) {
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "array_test.toml")
+
+	content := `[nfqws]
+strategy_c_args = ["--dpi-desync=fake,multisplit", "--dpi-desync-split-pos=sniext+2,midsld", "--dpi-desync-fooling=badsum"]
+`
+	if err := os.WriteFile(configFile, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed writing array test config: %v", err)
+	}
+
+	cfg, err := config.LoadConfig(configFile)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	expected := []string{
+		"--dpi-desync=fake,multisplit",
+		"--dpi-desync-split-pos=sniext+2,midsld",
+		"--dpi-desync-fooling=badsum",
+	}
+
+	if len(cfg.NFQWS.StrategyCArgs) != len(expected) {
+		t.Fatalf("Expected %d arguments, got %d: %v", len(expected), len(cfg.NFQWS.StrategyCArgs), cfg.NFQWS.StrategyCArgs)
+	}
+
+	for i, exp := range expected {
+		if cfg.NFQWS.StrategyCArgs[i] != exp {
+			t.Errorf("Arg %d mismatch: expected %q, got %q", i, exp, cfg.NFQWS.StrategyCArgs[i])
+		}
 	}
 }
 

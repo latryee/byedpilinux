@@ -40,6 +40,24 @@ func NewIPUpdater(domains []string, provider string, intervalSec int, fw Firewal
 	}
 }
 
+var initialStaticDiscordIPs = map[string]net.IP{
+	"discord.com":           net.ParseIP("162.159.138.232"),
+	"gateway.discord.gg":    net.ParseIP("162.159.136.234"),
+	"cdn.discordapp.com":    net.ParseIP("162.159.133.233"),
+	"media.discordapp.net":  net.ParseIP("162.159.133.232"),
+	"discord.gg":            net.ParseIP("162.159.136.234"),
+	"discordapp.com":        net.ParseIP("162.159.134.233"),
+	"discordapp.net":        net.ParseIP("162.159.135.233"),
+	"discordstatus.com":     net.ParseIP("18.239.50.93"),
+	"latency.discord.media": net.ParseIP("162.159.138.234"),
+	"discord.media":         net.ParseIP("162.159.129.235"),
+	"discord.co":            net.ParseIP("104.17.117.93"),
+	"discord.design":        net.ParseIP("188.114.97.3"),
+	"discord.dev":           net.ParseIP("188.114.96.3"),
+	"discord.gift":          net.ParseIP("104.21.25.51"),
+	"discord.new":           net.ParseIP("188.114.97.3"),
+}
+
 func (u *IPUpdater) Start() {
 	u.mu.Lock()
 	if u.isRunning {
@@ -48,6 +66,11 @@ func (u *IPUpdater) Start() {
 	}
 	u.isRunning = true
 	u.mu.Unlock()
+
+	// Immediately apply verified static seeds so there is zero window of unresolvability
+	if u.syncHosts {
+		_ = ApplyDiscordHosts(initialStaticDiscordIPs)
+	}
 
 	// Perform initial immediate resolve
 	u.resolveAndSync()
@@ -82,33 +105,49 @@ func (u *IPUpdater) Stop() {
 }
 
 func (u *IPUpdater) resolveAndSync() {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
 
 	v4Map := make(map[string]net.IP)
 	v6Map := make(map[string]net.IP)
 	domainToIP := make(map[string]net.IP)
 
-	for _, domain := range u.domains {
-		v4, v6, err := ResolveBoth(ctx, domain, u.provider)
-		if err != nil {
-			utils.Debug("DoH resolution for %s failed: %v", domain, err)
-			continue
-		}
-		for _, ip := range v4 {
-			if !IsSinkholeIP(ip) {
-				v4Map[ip.String()] = ip
-				if _, exists := domainToIP[domain]; !exists {
-					domainToIP[domain] = ip
-				}
-			}
-		}
-		for _, ip := range v6 {
-			if !IsSinkholeIP(ip) {
-				v6Map[ip.String()] = ip
-			}
+	// Pre-populate with verified static seeds
+	for k, v := range initialStaticDiscordIPs {
+		domainToIP[k] = v
+		if v != nil {
+			v4Map[v.String()] = v
 		}
 	}
+
+	for _, domain := range u.domains {
+		wg.Add(1)
+		go func(dom string) {
+			defer wg.Done()
+			v4, v6, err := ResolveBoth(ctx, dom, u.provider)
+			if err != nil {
+				utils.Debug("DoH resolution for %s failed: %v", dom, err)
+				return
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			for _, ip := range v4 {
+				if !IsSinkholeIP(ip) {
+					v4Map[ip.String()] = ip
+					domainToIP[dom] = ip
+				}
+			}
+			for _, ip := range v6 {
+				if !IsSinkholeIP(ip) {
+					v6Map[ip.String()] = ip
+				}
+			}
+		}(domain)
+	}
+	wg.Wait()
 
 	var allV4 []net.IP
 	for _, ip := range v4Map {

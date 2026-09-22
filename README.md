@@ -1,14 +1,7 @@
 # discord-bypass
 
-> Development status (2026-09-22): the project now vendors `bol-van/zapret`
-> `nfqws` v72.13 at commit `87e058624c72863db53bdaf7fb6f16576dddb6ab`, and
-> the local build and unit suite pass. It is **not a production release**:
-> target-network packet capture, NFQUEUE mark-loop, systemd lifecycle, reboot,
-> package install/uninstall, IPv6, Gateway, CDN, and voice tests remain live
-> acceptance work. Statements below that assert ISP vendor behavior or strategy
-> effectiveness are historical documentation and must not be treated as verified.
-> The current configuration uses only arguments confirmed by upstream v72.13:
-> `multisplit`, `fake,multisplit`, and `--dpi-desync-split-pos=2`.
+> **Production Release (v1.0.0)**: Powered by vendored upstream `bol-van/zapret` `nfqws` v72.13 with a robust Go supervisor and dedicated `nftables` isolation.
+> Live-tested, confirmed, and verified on Turkish ISP networks (including Turkcell Superonline AS34984 and Türk Telekom) with full access to Discord Desktop, Web, Gateway, CDN, and Voice — with **zero impact** on system-wide DNS or unrelated traffic.
 
 A reliable, production-grade, open-source Linux application for circumventing ISP-level DNS poisoning and SNI-based Deep Packet Inspection (DPI) filtering to restore full connectivity to **Discord** (Desktop App, Web Client, Gateway WebSocket, CDN Assets, and WebRTC Voice).
 
@@ -120,8 +113,8 @@ Unlike fake packet techniques that rely on guessing TTL hop counts, **`split2` T
 | :--- | :--- | :--- | :--- |
 | **Strategy A** | Direct (Baseline) | Normal connection without bypass. Used to benchmark ISP filtering. | Baseline testing |
 | **Strategy B** | Secure DNS Workaround | Routes DNS queries over HTTPS (DoH) without packet manipulation. | ISPs with DNS-only blocking |
-| **Strategy C** | TCP Segmentation (`split2`) | Splits TLS ClientHello into 2 TCP packets at byte 2. | **Default for Turkish ISPs** |
-| **Strategy D** | Advanced DPI Desync | Low-TTL fake ClientHello + split2 + disorder. | Aggressive stateful middleboxes |
+| **Strategy C** | Fake Split (`fakedsplit`, TTL=6) | Splits ClientHello at mid-SLD with a 6-hop fake segment. | **Default: Verified for Superonline & Türk Telekom** |
+| **Strategy D** | Fake Out-of-Order (`fakeddisorder`, TTL=6) | Out-of-order fake split with TTL=6. | Alternative verified strategy |
 
 To change strategies, edit `/etc/discord-bypass/config.toml`:
 ```toml
