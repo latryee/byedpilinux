@@ -1007,8 +1007,8 @@ func cmdInstall() {
 
 	// 5. Install systemd service unit
 	serviceData := `[Unit]
-Description=Discord DPI Circumvention Service (discord-bypass)
-Documentation=https://github.com/byedpilinux
+Description=Discord & Roblox DPI Circumvention Service (discord-bypass)
+Documentation=https://github.com/latryee/byedpilinux
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=60s

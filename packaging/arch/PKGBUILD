@@ -2,7 +2,7 @@
 pkgname=discord-bypass
 pkgver=1.0.0
 pkgrel=1
-pkgdesc="Linux DPI circumvention tool optimized for Discord in Türkiye"
+pkgdesc="Linux DPI circumvention tool optimized for Discord & Roblox in Türkiye"
 arch=('x86_64')
 url="https://github.com/latryee/byedpilinux"
 license=('MIT')

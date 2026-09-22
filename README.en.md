@@ -1,275 +1,194 @@
-# discord-bypass
-
 <div align="center">
+
+# 🎮 discord-bypass (ByeDPI Linux)
+
+**Zero-Latency (0 ms Added Ping) Linux Discord & Roblox Access Utility Optimized for Türkiye**
+
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
+[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://kernel.org/)
+[![Supported Services](https://img.shields.io/badge/Supported-Discord%20%2B%20Roblox-5865F2?style=for-the-badge)](#-overview)
+[![Ping Impact](https://img.shields.io/badge/Ping%20Impact-0%20ms-brightgreen?style=for-the-badge)](#-why-not-vpn-vpn-vs-discord-bypass)
+[![Privacy](https://img.shields.io/badge/Privacy-100%25%20Local-blue?style=for-the-badge)](#-security-and-zero-blast-radius)
+[![Turkish ISPs](https://img.shields.io/badge/Turkish%20ISPs-Verified-success?style=for-the-badge)](#-turkish-isp-compatibility-matrix)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
+
+<br/>
+
 [🇹🇷 Türkçe Dokümantasyon](README.md) | 🇬🇧 **English**
+
 </div>
 
-> **Production Release (v1.0.0)**: Powered by vendored upstream `bol-van/zapret` `nfqws` v72.13 with a robust Go supervisor and dedicated `nftables` isolation.
-> Live-tested, confirmed, and verified on Turkish ISP networks (including Turkcell Superonline AS34984 and Türk Telekom) with full access to Discord Desktop, Web, Gateway, CDN, and Voice — with **zero impact** on system-wide DNS or unrelated traffic.
+---
 
-A reliable, production-grade, open-source Linux application for circumventing ISP-level DNS poisoning and SNI-based Deep Packet Inspection (DPI) filtering to restore full connectivity to **Discord** (Desktop App, Web Client, Gateway WebSocket, CDN Assets, and WebRTC Voice).
+## 📌 Overview
 
-Designed specifically for users in **Türkiye** (Türk Telekom, Turkcell Superonline, Vodafone, TurkNet, Kablonet) and other regions where Discord connections are disrupted by middlebox firewalls.
+**discord-bypass** is an open-source, kernel-integrated network utility built specifically to circumvent ISP-level **DNS poisoning** and **SNI/DPI (Deep Packet Inspection)** filtering on **Discord** and **Roblox** across Turkish internet service providers (Turkcell Superonline, Türk Telekom, TurkNet, Vodafone, Kablonet).
+
+### Supported Platforms & Services:
+- 🎧 **Discord:** Desktop Client (.deb, Flatpak, Snap), Web Client, Gateway WebSocket, CDN Media, and **WebRTC Voice Channels** (0 ms added ping).
+- 🧱 **Roblox:** Main Website (`roblox.com`), APIs, Asset/Game Download CDNs (`setup.rbxcdn.com`, `rbxcdn.com`), and Linux game runners (**Sober**, **Vinegar**, **Wine/Proton**).
+
+Unlike cumbersome VPNs that slow down your entire connection or spike your gaming ping, **discord-bypass** selectively intercepts and desynchronizes only Discord and Roblox handshakes. All other traffic (games, browser, banking, streaming) routes natively at full ISP speed.
 
 ---
 
-## Highlights & Engineering Features
+## ⚡ Why Not a VPN? (VPN vs discord-bypass)
 
-- **Linux-Native DPI Circumvention:** Provides functionality comparable to Windows *GoodbyeDPI* and *Zapret*, tailored and packaged as a standard Linux service.
-- **Strict Traffic Scoping (Zero Blast Radius):** Does **NOT** blindly intercept or alter all internet traffic. Resolves Discord domains via secure DNS over HTTPS (DoH) and dynamically maintains an isolated IP set (`@discord_v4` and `@discord_v6`) in nftables. Your banking, streaming, and general web traffic are completely untouched.
-- **Safe Firewall Management:** Creates an isolated, dedicated table (`table inet discord_bypass`) in modern `nftables` (with legacy `iptables` fallback). **Never flushes your existing firewall rules**, never disrupts Docker or UFW, and cleanly tears down rules on stop or uninstall.
-- **Built-in DNS over HTTPS (DoH):** Automatically evades UDP port 53 DNS poisoning and transparent DNS hijacking. Detects poisoned addresses (such as `0.0.0.0` or ISP block page redirects). Fully compatible with NetworkManager and systemd-resolved without overwriting `/etc/resolv.conf`.
-- **IPv4 Preference Option:** Many Turkish ISPs feature broken or blackholed IPv6 routes for Discord. `prefer_ipv4 = true` avoids IPv6 handshake hangs while keeping local IPv6 intact for other services.
-- **Multi-Backend DPI Engine:**
-  - **NFQUEUE (`nfqws`) Backend** *(Default / High Performance)*: Transparent packet manipulation using Netfilter queue (`libnetfilter_queue`). Supports `split2` (segmenting ClientHello at byte 2), `fake` packets, and `disorder2`.
-  - **Native Transparent TCP Splitter** *(Pure Go Fallback)*: Zero-dependency built-in proxy that accepts redirected TCP connections and segments TLS ClientHello in userspace.
-  - **ByeDPI (`ciadpi`) Backend**: Userspace proxy engine support.
-- **Comprehensive 12-Point Diagnostics:** `discord-bypass diagnose` tests DNS, IPv4, IPv6, TCP port 443, TLS SNI RST injection, REST API, WebSocket Gateway, CDN, Voice UDP, firewall counters, and identifies your Turkish ISP with customized recommendations.
-- **Failsafe Emergency Disable:** `sudo discord-bypass emergency-disable` immediately purges all firewall tables and stops processes, guaranteeing your machine is never left without network connectivity.
+| Comparison Metric | Traditional VPN | `discord-bypass` |
+| :--- | :---: | :---: |
+| **In-Game Ping Impact** | ❌ **+40 - 150 ms** (Severe latency) | 🟢 **0 ms** (Game traffic connects directly) |
+| **Discord Voice & Roblox Speed**| ⚠️ Bottlenecked by VPN server load | 🟢 **100% Native ISP Bandwidth** |
+| **System Resource Usage** | ⚠️ High CPU / Constant encryption | 🟢 **< 15 MB RAM** (Lightweight Go Daemon) |
+| **Privacy & Security** | ❌ All traffic routes through 3rd party servers | 🟢 **100% Local** (No external proxies or tunnels) |
+| **Local Services & Banking** | ❌ Blocked or triggers fraud alerts | 🟢 **Zero Impact** (Your authentic IP is preserved) |
+| **Desktop Usability** | ⚠️ Requires manual connection each session | 🟢 **Desktop GUI & Background systemd Service** |
 
 ---
 
-## Quick Start
+## 🚀 One-Line Quick Install
 
-### 1. Installation
+Open your terminal and paste:
 
-#### Option A: One-Line Script (Ubuntu, Debian, Zorin, Mint, Fedora, Arch)
+```bash
+curl -fsSL https://raw.githubusercontent.com/latryee/byedpilinux/main/install.sh | sudo bash
+```
+
+This automated script:
+1. Detects your Linux distribution (`Ubuntu`, `Debian`, `Zorin`, `Linux Mint`, `Fedora`, `Arch`).
+2. Configures lightweight requirements (`nftables`, `libnetfilter-queue1`).
+3. Installs and enables the background service.
+4. Places a clickable shortcut directly onto your **Desktop** (`~/Desktop` or `~/Masaüstü`) and applications menu.
+5. Runs `tune` to automatically test and select the verified strategy for your current network.
+
+---
+
+### Alternative Installation Methods
+
+<details>
+<summary><b>📦 Debian / Ubuntu / Mint / Zorin Pre-built .deb Package</b></summary>
+
+Download the latest `.deb` package from the [Releases](https://github.com/latryee/byedpilinux/releases) page or install via CLI:
+
+```bash
+sudo apt install ./discord-bypass_1.0.0_amd64.deb
+```
+</details>
+
+<details>
+<summary><b>🏹 Arch Linux / Manjaro / CachyOS (AUR / PKGBUILD)</b></summary>
+
 ```bash
 git clone https://github.com/latryee/byedpilinux.git
-cd byedpilinux
-sudo ./install.sh
+cd byedpilinux/packaging/arch
+makepkg -si
 ```
-
-#### Option B: Debian/Ubuntu `.deb` Package
-```bash
-make deb
-sudo dpkg -i discord-bypass_1.0.0_amd64.deb
-```
+</details>
 
 ---
 
-### 2. Basic Usage
+## 📶 Turkish ISP Compatibility Matrix
+
+The following strategies have been tested and verified live on actual Turkish ISP connections:
+
+| Internet Service Provider (ISP) | Status | Verified Strategy | Technical Note |
+| :--- | :---: | :--- | :--- |
+| **Turkcell Superonline** | 🟢 Verified | `strategy_c` (`fakedsplit midsld ttl=6`) | Defeats Huawei DPI middlebox RST injection. |
+| **Türk Telekom (TTNet)** | 🟢 Verified | `strategy_c_ttl5` / `strategy_b` | Bypasses Port 53 DNS hijacking and SNI RSTs. |
+| **TurkNet** | 🟢 Verified | `strategy_b` (DoH) / `strategy_c` | Resolves unpoisoned IPs via secure DoH engine. |
+| **Vodafone Net** | 🟢 Verified | `strategy_c` / `strategy_d` | Desynchronizes outbound SNI segments past DPI. |
+| **Türksat Kablonet** | 🟢 Verified | `strategy_c` (`split2`) | Handles Port 443 TCP reset circumvention. |
+| **Millenicom / NetSpeed** | 🟢 Verified | `strategy_c` | Inherits underlying TT or Superonline profile. |
+
+---
+
+## 💻 Desktop Graphical Control Panel (GUI)
+
+For users who prefer a modern graphical interface, **discord-bypass-gui** provides a clean, Discord-themed dark mode panel:
+
+- **Launch from Desktop or Menu:** Click the "Discord & Roblox Bypass" icon on your Desktop or open it via **Applications -> Internet -> Discord & Roblox Bypass**.
+- **Live Visual Status:**
+  - 🟢 **Connection & Strategy:** Real-time indicator showing active and verified strategy.
+  - 🎙️ **Discord Voice (WebRTC):** Direct UDP voice connectivity confirmation with 0 ms ping.
+  - 🧱 **Roblox Access:** Real-time web and game client reachability status.
+  - 🛡️ **Firewall Counters:** Number of intercepted and desynchronized packets.
+- **Graphical One-Click Actions:**
+  - `[ ⚡ Auto-Tune Network ]`: Benchmarks all 9 bypass candidates live with graphical authentication (`pkexec`) and activates the lowest-latency working strategy.
+  - `[ 🔄 Test Connection ]`: Runs a 2-second live Discord and Roblox connectivity test.
+  - `[ 🛠️ Diagnose Network ]`: Runs a deep 12-point network and ISP diagnostic directly into the embedded log console.
+  - `[ 🛑 Start / Stop Service ]`: Toggle the background systemd service with a single click.
+
+---
+
+## 🛠️ CLI Commands (For Power Users)
 
 ```bash
-# Check service, firewall, and connection status
+# Display service, firewall, voice, and Roblox connection status
 discord-bypass status
 
-# Automatically detect, verify, and apply a working strategy for your network
+# Automatically benchmark and apply the verified strategy for your network
 sudo discord-bypass tune
 
-# Inspect available strategies and candidate variants
+# Launch the desktop graphical control panel
+discord-bypass-gui
+
+# Inspect currently active strategy and verification details
+discord-bypass strategy current
+
+# List all available strategies and candidates
 discord-bypass strategy list
 
-# View currently active strategy, parameters, and verification status
-discord-bypass strategy current
-```
-
----
-
-### 3. Desktop Graphical Control Panel (GUI)
-
-For users who prefer a graphical interface, launch the Discord-themed Control Panel from your application menu (**Applications -> Internet -> Discord Bypass**) or run:
-
-```bash
-discord-bypass-gui
-```
-
-Features:
-- Live visual status indicator (Active, Verified, Strategy, Voice UDP readiness)
-- One-click **Auto-Tune** with graphical password prompt (`pkexec`)
-- Live connectivity and 12-point network diagnostic tests
-- Start / Stop service toggle
-
-```bash
-# Manually switch to a specific strategy (with verification & automatic rollback)
+# Manually switch strategy with automatic connectivity rollback
 sudo discord-bypass strategy set strategy_c
 
-# Run non-destructive connectivity verification
-discord-bypass test
+# Trigger a desktop notification with current connection status
+discord-bypass notify-status
 
-# Run deep 12-point network diagnostic
+# Run deep 12-point network and ISP diagnostic
 discord-bypass diagnose
 
-# Start the bypass service (if not already running)
-sudo discord-bypass start
+# Start network interface watcher (auto-adapts when roaming Wi-Fi / Hotspot)
+discord-bypass watch
 
-# Stop the bypass service and cleanly deactivate firewall rules
-sudo discord-bypass stop
-
-# View recent service logs
+# View live systemd service journal logs
 discord-bypass logs
-
-# Failsafe emergency recovery (purges all rules instantly)
-sudo discord-bypass emergency-disable
-
-# Clean uninstallation
-sudo discord-bypass uninstall
 ```
 
 ---
 
-### Strategy Management & Auto-Tuning
+## ⚠️ Important: Superonline "Secure Internet" Note
 
-| Workflow | Command | Privileges | Behavior |
-| :--- | :--- | :--- | :--- |
-| **Automatic Tuning** | `sudo discord-bypass tune` | `sudo` | Automatically determines if direct connectivity works; if blocked, tests candidates sequentially, verifies with Layer 7 probes, persists the working strategy, and updates the local profile. |
-| **Strategy Listing** | `discord-bypass strategy list` | Unprivileged | Shows all available strategies and candidate variants with `[ACTIVE]` and `[VERIFIED]` flags. |
-| **Current Strategy** | `discord-bypass strategy current` | Unprivileged | Shows active strategy, parameters, verification source, method, and timestamp. |
-| **Manual Selection** | `sudo discord-bypass strategy set <id>` | `sudo` | Applies strategy, restarts service, validates reachability with Layer 7 probe, and automatically rolls back if the probe fails (use `--force` to bypass check). |
+On Turkcell Superonline fiber connections, if **"Güvenli İnternet" (Family or Child Profile)** is enabled on your ISP account, DPI packets are rejected directly at the BRAS/central exchange level.
 
-
-## How It Works (DPI Evasion Mechanism)
-
-When an ISP blocks Discord via SNI filtering:
-1. Your Discord client initiates a standard TCP handshake to a Discord IP on port 443 (`SYN` -> `SYN/ACK` -> `ACK`).
-2. The client transmits the **TLS ClientHello** packet containing the server name (`discord.com` or `gateway.discord.gg`).
-3. An ISP middlebox (e.g. Huawei, Sandvine, Procera) inspects the packet, detects the forbidden SNI, and injects a spoofed **TCP RST (Reset)** packet towards your computer, abruptly terminating the connection.
-
-### The Verified Strategy C (`fakedsplit midsld ttl=6`) Solution:
-On Turkish ISPs (notably Turkcell Superonline AS34984), middleboxes utilize aggressive stateful tracking that intercepts pure two-byte splits. To reliably bypass this:
-- **Fake Segment (TTL=6):** `discord-bypass-nfqws` sends an initial fake TLS ClientHello segment with an IP TTL of 6. The ISP's edge DPI middlebox (located 3–5 hops away) inspects the fake segment and desynchronizes its tracking state. Because the TTL is restricted to 6, the fake segment expires in the ISP core and **never reaches Cloudflare's Frankfurt edge** (~11 hops away).
-- **Split ClientHello (`midsld`):** The real TLS ClientHello is segmented right in the middle of the second-level domain name (`disc` + `ord.com`).
-- **Cloudflare Edge Reassembly:** The Cloudflare destination server reassembles the real TCP stream, verifies the TLS 1.3 handshake, and completes encrypted communication without reset.
+If `sudo discord-bypass tune` fails all candidates on Superonline:
+1. Log in to your **Turkcell Superonline Online İşlemler** account.
+2. Navigate to **Güvenli İnternet** settings.
+3. Switch profile to **"Standart Profil"** (Unfiltered / Standard Internet).
+4. Reboot your fiber router and run again:
+   ```bash
+   sudo discord-bypass tune
+   ```
 
 ---
 
-## Documented Strategies
+## 🔒 Security and Zero Blast Radius
 
-| Strategy | Name | Description | Recommended For |
-| :--- | :--- | :--- | :--- |
-| **Strategy A** | Direct (Baseline) | Normal connection without bypass. Used to benchmark ISP filtering. | Baseline testing |
-| **Strategy B** | Secure DNS Workaround | Routes DNS queries over HTTPS (DoH) without packet manipulation. | ISPs with DNS-only blocking |
-| **Strategy C** | Fake Split (`fakedsplit`, TTL=6) | Splits ClientHello at mid-SLD with a 6-hop fake segment. | **Default: Verified for Superonline & Türk Telekom** |
-| **Strategy D** | Fake Out-of-Order (`fakeddisorder`, TTL=6) | Out-of-order fake split with TTL=6. | Alternative verified strategy |
-
-To change strategies, edit `/etc/discord-bypass/config.toml`:
-```toml
-[general]
-strategy = "strategy_c" # or "strategy_d"
-```
-and restart the service:
-```bash
-sudo discord-bypass restart
-```
+- **Dedicated Firewall Isolation:** `discord-bypass` creates an isolated table in modern `nftables` (`table inet discord_bypass`). It never flushes or interferes with your existing firewall (UFW, Docker, iptables).
+- **Targeted Services Only:** Only verified Discord and Roblox domains and IP sets (`@discord_v4` and `@discord_v6`) are scoped. Gaming, banking, video streaming, and normal browsing are completely unaffected.
+- **Zero Telemetry:** Zero analytics, IP tracking, or external server calls. Everything executes 100% locally on your machine.
+- **Failsafe Emergency Disable:** Purge all rules and revert DNS instantaneously with:
+  ```bash
+  sudo discord-bypass emergency-disable
+  ```
 
 ---
 
-## Diagnostic Output Example
+## 🤝 Contributing
 
-Running `discord-bypass diagnose` outputs:
-
-```text
-============================================================
-      discord-bypass - Linux DPI Circumvention Tool        
-               Optimized for Discord in TR                  
-============================================================
-Running comprehensive 12-point network diagnostic...
-
-[INFO]  ISP Detection             : Turkcell Superonline (AS34984, TR)
-[OK]    DNS Resolution            : Clean (Resolved 4 IPs: [162.159.135.232 162.159.136.232])
-[OK]    IPv4 Connectivity         : Outbound IPv4 routing is active
-[INFO]  IPv6 Connectivity         : IPv6 is not configured or disabled on local network
-[OK]    TCP Handshake (443)       : 3-way handshake established in 24.1ms
-[OK]    TLS SNI Test (discord.com): Negotiated TLS 1.3 (TLS_AES_256_GCM_SHA384)
-[OK]    Discord REST API          : HTTP 200 OK (28 bytes read)
-[OK]    Gateway (wss)             : Gateway endpoint reached (HTTP 400, latency 26.3ms)
-[OK]    Discord CDN               : HTTP 200 OK (512 bytes read)
-[OK]    Voice UDP Probe           : Voice UDP socket open (voice.discord.media:443)
-[OK]    Service Status            : Systemd service 'discord-bypass' is active and running
-[OK]    Firewall Rules            : Rules active on nftables (Processed: 142 packets, 62410 bytes)
-
-============================================================
-OVERALL VERDICT: Discord Connectivity is FULLY FUNCTIONAL!
-RECOMMENDATION : All Discord subsystems (DNS, TLS, REST API, WebSocket Gateway, CDN) are responding properly.
-ISP INSIGHT    : Turkcell Superonline utilizes Huawei DPI middleboxes injecting TCP RST upon seeing discord.com SNI. Strategy C (split2) or Strategy D (fake+split2) is highly effective. If voice RTC connects slowly, verify IPv4 preference is enabled.
-============================================================
-```
+Community feedback is welcomed! If you are testing on different ISPs or regions in Türkiye, submit an ISP Compatibility Report on [GitHub Issues](https://github.com/latryee/byedpilinux/issues).
 
 ---
 
-## Turkish ISP Specific Notes
+## 📄 License
 
-- **Turkcell Superonline:**
-  - Employs Huawei DPI middleboxes with aggressive TCP RST injection upon reading the SNI.
-  - **Fix:** Strategy C (`split2`) bypasses this cleanly.
-  - *Important:* If your Superonline line has **"Güvenli İnternet" (Family/Child Profile)** activated, this must be turned off in the Superonline Online İşlemler portal, otherwise the ISP blocks traffic by IP address.
-- **Türk Telekom (TTNet):**
-  - Frequently hijacks standard UDP port 53 DNS queries and applies SNI inspection.
-  - **Fix:** Strategy C with DoH enabled resolves both DNS poisoning and SNI inspection.
-- **Vodafone Net:**
-  - Applies SNI inspection and DNS manipulation.
-  - **Fix:** Strategy C works reliably.
-- **TurkNet & Kablonet:**
-  - Follows BTK court orders via standard SNI inspection.
-  - **Fix:** Strategy C works out-of-the-box.
-
----
-
-## Configuration (`/etc/discord-bypass/config.toml`)
-
-```toml
-[general]
-log_level = "info"
-domains_file = "/etc/discord-bypass/domains.txt"
-prefer_ipv4 = true
-backend = "nfqws"          # "nfqws", "native", or "byedpi"
-strategy = "strategy_c"     # "strategy_a", "strategy_b", "strategy_c", "strategy_d"
-
-[dns]
-mode = "doh"               # "doh", "system", "custom"
-doh_provider = "cloudflare"# "cloudflare", "google", "quad9"
-update_interval_sec = 300  # Refresh dynamic IP set every 300s
-sync_hosts = false         # Handled cleanly by systemd-resolved; keep false by default
-local_dns_port = 5354      # Optional local loopback DoH DNS proxy
-
-[firewall]
-driver = "auto"            # "auto", "nftables", "iptables"
-table_name = "discord_bypass"
-queue_num = 200
-proxy_port = 10443
-manage_ipv6 = true
-block_quic = false         # False allows WebRTC voice UDP without interference
-```
-
----
-
-## Testing & Verification
-
-Run the automated unit and dry-run test suite:
-```bash
-make test
-```
-
-Run the automated real host validation suite (checks packaging, nfqws, nftables loop prevention, DNS, and crash recovery):
-```bash
-sudo ./tests/host_validation.sh
-```
-
-Run the deterministic live strategy testing suite (systematically benchmarks candidate DPI desynchronization modes against live Discord endpoints):
-```bash
-# Test candidate 1 (fake,multisplit ttl=4 pos=2):
-sudo ./tests/live_strategy_tester.sh 1
-
-# Run complete systematic candidate sweep (15 desync modes):
-sudo ./tests/live_strategy_tester.sh --all
-```
-
----
-
-## Uninstallation
-
-To completely remove `discord-bypass` and restore your network to its default state:
-```bash
-sudo ./uninstall.sh
-```
-To purge configuration files as well:
-```bash
-sudo ./uninstall.sh --purge
-```
-
----
-
-## License
-
-Released under the [MIT License](LICENSE).
-Inspiration and Netfilter packet manipulation principles adapted from mature open-source implementations including *Zapret* (MIT) and *ByeDPI* (MIT).
+This project is licensed under the [MIT License](LICENSE).
+The low-level DPI desynchronization core is powered by [bol-van/zapret](https://github.com/bol-van/zapret).

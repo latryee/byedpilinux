@@ -5,9 +5,9 @@ Priority: optional
 Architecture: amd64
 Depends: libc6, nftables | iptables, libnetfilter-queue1, libnfnetlink0, libmnl0, zlib1g
 Maintainer: Discord Bypass Team <support@discord-bypass.local>
-Description: Linux DPI circumvention tool optimized for Discord
+Description: Linux DPI circumvention tool optimized for Discord & Roblox
  A high-performance, maintainable Linux application that bypasses
  ISP-level DNS poisoning and SNI-based TLS DPI filtering to restore
- reliable access to Discord desktop, web, gateway, CDN, and voice
+ reliable access to Discord and Roblox (desktop, web, voice, clients)
  in Türkiye and other filtered regions.
- Includes unified CLI, systemd service, and deep network diagnostics.
+ Includes unified CLI, desktop GUI panel, and deep network diagnostics.

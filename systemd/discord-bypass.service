@@ -1,5 +1,5 @@
 [Unit]
-Description=Discord DPI Circumvention Service (discord-bypass)
+Description=Discord & Roblox DPI Circumvention Service (discord-bypass)
 Documentation=https://github.com/latryee/byedpilinux
 After=network-online.target
 Wants=network-online.target
