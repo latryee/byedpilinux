@@ -23,7 +23,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y gcc make libnetfilter-queue-dev libmnl-dev nftables iptables
+          sudo apt-get install -y gcc make libnetfilter-queue-dev libmnl-dev libcap-dev nftables iptables
 
       - name: Run Static Analysis (go vet)
         run: go vet ./...
@@ -38,4 +38,4 @@ jobs:
         run: ./packaging/build_deb.sh
 
       - name: Validate Package Metadata
-        run: dpkg-deb --info discord-bypass_1.0.0_amd64.deb
+        run: dpkg-deb --info discord-bypass_1.1.0_amd64.deb
