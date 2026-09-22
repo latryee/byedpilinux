@@ -142,6 +142,21 @@ if command -v gtk-update-icon-cache &>/dev/null; then
     gtk-update-icon-cache -q /usr/share/icons/hicolor || true
 fi
 
+# Create desktop shortcut on user's Desktop / Masaüstü
+REAL_USER="${SUDO_USER:-$USER}"
+USER_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6 || echo "/home/$REAL_USER")
+for d in "$USER_HOME/Masaüstü" "$USER_HOME/Desktop"; do
+    if [ -d "$d" ]; then
+        echo -e "[INFO] Creating desktop shortcut on ${GREEN}$d/discord-bypass.desktop${NC}..."
+        cp desktop/discord-bypass.desktop "$d/discord-bypass.desktop" 2>/dev/null || true
+        chmod +x "$d/discord-bypass.desktop" 2>/dev/null || true
+        chown "$REAL_USER:$REAL_USER" "$d/discord-bypass.desktop" 2>/dev/null || true
+        if command -v gio &>/dev/null; then
+            su - "$REAL_USER" -c "gio set '$d/discord-bypass.desktop' metadata::trusted true" 2>/dev/null || true
+        fi
+    fi
+done
+
 # Run auto-tuning for current network
 if [ -d /run/systemd/system ] && systemctl is-active --quiet discord-bypass; then
     echo -e "\n${BLUE}[INFO] Running automatic strategy tuning for current network...${NC}"

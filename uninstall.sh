@@ -94,6 +94,14 @@ echo "  [+] Removed installed binaries and symlinks"
 echo -e "[INFO] Removing desktop integration..."
 rm -f /usr/share/applications/discord-bypass.desktop
 rm -f /usr/share/icons/hicolor/scalable/apps/discord-bypass.svg
+
+# Remove user desktop shortcuts
+REAL_USER="${SUDO_USER:-$USER}"
+USER_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6 || echo "/home/$REAL_USER")
+for d in "$USER_HOME/Masaüstü" "$USER_HOME/Desktop"; do
+    rm -f "$d/discord-bypass.desktop" 2>/dev/null || true
+done
+
 if command -v update-desktop-database &>/dev/null; then
     update-desktop-database -q /usr/share/applications || true
 fi
