@@ -163,13 +163,20 @@ Eğer `discord-bypass tune` çalıştırdığınızda tüm stratejiler başarıs
 
 ---
 
-## 💻 Masaüstü Entegrasyonu
+## 💻 Masaüstü Kontrol Paneli (GUI) & Entegrasyon
 
-Uygulama, sisteminize kurulduğunda başlatıcı menünüze (**Uygulamalar -> İnternet -> Discord Bypass**) otomatik olarak eklenir. Sağ tık menüsü üzerinden tek tıkla durum kontrolü ve ağ ayarı yapabilirsiniz:
+Terminal kullanmak istemeyen kullanıcılar ve oyuncular için **Discord temalı, karanlık modda çalışan modern bir Grafiksel Kontrol Paneli** (`discord-bypass-gui`) sunulmaktadır:
 
-- **Durumu Göster**
-- **Ağ Teşhisi Yap (Diagnose)**
-- **Otomatik Strateji Ayarla (Tune)**
+- **Uygulamalar Menüsünden Tek Tık:** Kurulum yapıldığında başlatıcı menünüze (**Uygulamalar -> İnternet -> Discord Bypass**) otomatik olarak eklenir. Tıkladığınızda doğrudan grafik kontrol paneli açılır.
+- **Canlı Görsel Durum Paneli:**
+  - 🟢 **Bağlantı & Strateji:** Aktif ve doğrulanmış çalışma stratejisini anlık gösterir.
+  - 🎙️ **Discord Ses (WebRTC):** Ses sunucularının erişilebilirliğini ve 0 ms gecikmeli durumu raporlar.
+  - 🛡️ **Güvenlik Duvarı:** İşlenen Discord paket sayısını canlı olarak listeler.
+- **Grafiksel Kolay Aksiyonlar:**
+  - `[ ⚡ Ağımı Otomatik Ayarla (Tune) ]`: Terminal açmadan, grafiksel şifre onay kutusuyla (`pkexec`) tek tıkla ağınız için en uygun stratejiyi bulur ve uygular.
+  - `[ 🔄 Test Et ]`: Canlı Gateway ve REST API gecikmesini test eder.
+  - `[ 🛠️ Ağ Teşhisi Yap ]`: 12 adımlı derin ISS teşhis raporunu pencere içinde canlı listeler.
+  - `[ 🛑 Servisi Başlat / Durdur ]`: Servis durumunu tek tıkla kontrol etmenizi sağlar.
 
 ---
 

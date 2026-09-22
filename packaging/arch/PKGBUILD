@@ -25,6 +25,7 @@ package() {
     
     install -Dm755 bin/discord-bypass "$pkgdir/usr/bin/discord-bypass"
     install -Dm755 bin/discord-bypass-nfqws "$pkgdir/usr/bin/discord-bypass-nfqws"
+    install -Dm755 desktop/discord-bypass-gui "$pkgdir/usr/bin/discord-bypass-gui"
     
     install -Dm644 config/config.toml "$pkgdir/etc/discord-bypass/config.toml"
     install -Dm644 config/domains.txt "$pkgdir/etc/discord-bypass/domains.txt"

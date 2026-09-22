@@ -84,8 +84,10 @@ fi
 echo -e "[INFO] Removing installed binaries..."
 rm -f /usr/bin/discord-bypass
 rm -f /usr/bin/discord-bypass-nfqws
+rm -f /usr/bin/discord-bypass-gui
 rm -f /usr/local/bin/discord-bypass
 rm -f /usr/local/bin/discord-bypass-nfqws
+rm -f /usr/local/bin/discord-bypass-gui
 echo "  [+] Removed installed binaries and symlinks"
 
 # Remove desktop integration

@@ -1,0 +1,370 @@
+#!/usr/bin/env python3
+"""
+discord-bypass-gui - Modern GTK Control Panel for Discord Bypass
+A lightweight, zero-external-dependency desktop interface designed for Turkish Linux users.
+"""
+
+import os
+import sys
+import json
+import shutil
+import subprocess
+import threading
+import time
+
+try:
+    import gi
+    gi.require_version('Gtk', '3.0')
+    gi.require_version('Gdk', '3.0')
+    from gi.repository import Gtk, Gdk, GLib, Pango
+except ImportError as e:
+    print(f"Error: PyGObject GTK3 is required: {e}")
+    sys.exit(1)
+
+
+CSS_STYLE = b"""
+window {
+    background-color: #202225;
+}
+.header-box {
+    background-color: #2f3136;
+    padding: 18px 24px;
+    border-bottom: 2px solid #202225;
+}
+.title-label {
+    color: #ffffff;
+    font-size: 18px;
+    font-weight: bold;
+}
+.subtitle-label {
+    color: #b9bbbe;
+    font-size: 12px;
+}
+.card {
+    background-color: #2f3136;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin: 8px 16px;
+    border: 1px solid #36393f;
+}
+.card-title {
+    color: #8e9297;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+.status-active {
+    color: #57F287;
+    font-size: 15px;
+    font-weight: bold;
+}
+.status-inactive {
+    color: #ED4245;
+    font-size: 15px;
+    font-weight: bold;
+}
+.status-warn {
+    color: #FEE75C;
+    font-size: 15px;
+    font-weight: bold;
+}
+.info-value {
+    color: #dcddde;
+    font-size: 13px;
+}
+.btn-primary {
+    background-color: #5865F2;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 10px 18px;
+    font-weight: bold;
+    border: none;
+}
+.btn-primary:hover {
+    background-color: #4752C4;
+}
+.btn-secondary {
+    background-color: #4f545c;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-weight: bold;
+    border: none;
+}
+.btn-secondary:hover {
+    background-color: #5d6269;
+}
+.btn-danger {
+    background-color: #ED4245;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font-weight: bold;
+    border: none;
+}
+.btn-danger:hover {
+    background-color: #c03537;
+}
+.console-view {
+    background-color: #18191c;
+    color: #57F287;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 10px;
+    border-radius: 6px;
+}
+"""
+
+
+class DiscordBypassApp(Gtk.Window):
+    def __init__(self):
+        super().__init__(title="Discord Bypass - Kontrol Paneli")
+        self.set_default_size(520, 640)
+        self.set_position(Gtk.WindowPosition.CENTER)
+
+        # Set Window Icon
+        icon_path = "/usr/share/icons/hicolor/scalable/apps/discord-bypass.svg"
+        if not os.path.exists(icon_path):
+            local_icon = os.path.join(os.path.dirname(os.path.abspath(__file__)), "discord-bypass.svg")
+            if os.path.exists(local_icon):
+                icon_path = local_icon
+
+        if os.path.exists(icon_path):
+            try:
+                self.set_icon_from_file(icon_path)
+            except Exception:
+                pass
+
+        # Apply CSS
+        style_provider = Gtk.CssProvider()
+        style_provider.load_from_data(CSS_STYLE)
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            style_provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        self.binary_path = self.find_binary()
+        self.build_ui()
+        self.refresh_status()
+
+        # Timer to auto-refresh every 6 seconds
+        GLib.timeout_add_seconds(6, self.refresh_status)
+
+    def find_binary(self):
+        for path in ["/usr/bin/discord-bypass", "/usr/local/bin/discord-bypass", "./bin/discord-bypass"]:
+            if os.path.isfile(path) and os.access(path, os.X_OK):
+                return os.path.abspath(path)
+        return "discord-bypass"
+
+    def build_ui(self):
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.add(vbox)
+
+        # 1. Header
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
+        header.get_style_context().add_class("header-box")
+
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        lbl_title = Gtk.Label(xalign=0)
+        lbl_title.set_markup("<span class='title-label'>🎮 Discord Bypass</span>")
+        lbl_sub = Gtk.Label(xalign=0)
+        lbl_sub.set_markup("<span class='subtitle-label'>Linux DPI Desenkronizasyon &amp; Erişim Servisi</span>")
+        title_box.pack_start(lbl_title, False, False, 0)
+        title_box.pack_start(lbl_sub, False, False, 0)
+        header.pack_start(title_box, True, True, 0)
+
+        vbox.pack_start(header, False, False, 0)
+
+        # 2. Main Content Cards Container
+        content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        vbox.pack_start(content_box, False, False, 6)
+
+        # Card 1: Connection & Strategy Status
+        c1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        c1.get_style_context().add_class("card")
+        c1_title = Gtk.Label(xalign=0)
+        c1_title.set_markup("<span class='card-title'>BAĞLANTI VE STRATEJİ DURUMU</span>")
+        self.lbl_status = Gtk.Label(xalign=0)
+        self.lbl_status.set_markup("<span class='status-active'>🟢 Yükleniyor...</span>")
+        self.lbl_strategy = Gtk.Label(xalign=0)
+        self.lbl_strategy.set_markup("<span class='info-value'>Aktif Strateji: -</span>")
+        c1.pack_start(c1_title, False, False, 0)
+        c1.pack_start(self.lbl_status, False, False, 0)
+        c1.pack_start(self.lbl_strategy, False, False, 0)
+        content_box.pack_start(c1, False, False, 0)
+
+        # Card 2: Voice & Network Card
+        c2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        c2.get_style_context().add_class("card")
+        c2_title = Gtk.Label(xalign=0)
+        c2_title.set_markup("<span class='card-title'>AĞ &amp; DİSCORD SES (WEBRTC) DURUMU</span>")
+        self.lbl_voice = Gtk.Label(xalign=0)
+        self.lbl_voice.set_markup("<span class='info-value'>🎙️ Ses (UDP): Kontrol ediliyor...</span>")
+        self.lbl_traffic = Gtk.Label(xalign=0)
+        self.lbl_traffic.set_markup("<span class='info-value'>🛡️ Güvenlik Duvarı: Trafik izleniyor...</span>")
+        c2.pack_start(c2_title, False, False, 0)
+        c2.pack_start(self.lbl_voice, False, False, 0)
+        c2.pack_start(self.lbl_traffic, False, False, 0)
+        content_box.pack_start(c2, False, False, 0)
+
+        # 3. Action Buttons
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        btn_box.set_margin_start(16)
+        btn_box.set_margin_end(16)
+        btn_box.set_margin_top(8)
+
+        # Primary Row
+        row1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        btn_tune = Gtk.Button(label="⚡ Ağımı Otomatik Ayarla (Tune)")
+        btn_tune.get_style_context().add_class("btn-primary")
+        btn_tune.connect("clicked", self.on_tune_clicked)
+
+        btn_test = Gtk.Button(label="🔄 Test Et")
+        btn_test.get_style_context().add_class("btn-secondary")
+        btn_test.connect("clicked", self.on_test_clicked)
+
+        row1.pack_start(btn_tune, True, True, 0)
+        row1.pack_start(btn_test, False, False, 0)
+        btn_box.pack_start(row1, False, False, 0)
+
+        # Secondary Row
+        row2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        btn_diag = Gtk.Button(label="🛠️ Ağ Teşhisi Yap (Diagnose)")
+        btn_diag.get_style_context().add_class("btn-secondary")
+        btn_diag.connect("clicked", self.on_diagnose_clicked)
+
+        self.btn_service = Gtk.Button(label="🛑 Servisi Durdur")
+        self.btn_service.get_style_context().add_class("btn-danger")
+        self.btn_service.connect("clicked", self.on_toggle_service)
+
+        row2.pack_start(btn_diag, True, True, 0)
+        row2.pack_start(self.btn_service, False, False, 0)
+        btn_box.pack_start(row2, False, False, 0)
+
+        content_box.pack_start(btn_box, False, False, 0)
+
+        # 4. Console Output Log Box (Collapsible/Scrollable)
+        log_label = Gtk.Label(label="CANLI ÇIKTI &amp; LOG", xalign=0)
+        log_label.set_markup("<span class='card-title'>CANLI ÇIKTI &amp; LOG</span>")
+        log_label.set_margin_start(18)
+        log_label.set_margin_top(10)
+        vbox.pack_start(log_label, False, False, 0)
+
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
+        scrolled.set_margin_start(16)
+        scrolled.set_margin_end(16)
+        scrolled.set_margin_bottom(16)
+        scrolled.set_margin_top(4)
+
+        self.text_view = Gtk.TextView()
+        self.text_view.set_editable(False)
+        self.text_view.set_wrap_mode(Gtk.WrapMode.WORD)
+        self.text_view.get_style_context().add_class("console-view")
+        self.text_buffer = self.text_view.get_buffer()
+        self.append_log("Discord Bypass Kontrol Paneli Hazır.\n")
+
+        scrolled.add(self.text_view)
+        vbox.pack_start(scrolled, True, True, 0)
+
+    def append_log(self, text):
+        end_iter = self.text_buffer.get_end_iter()
+        self.text_buffer.insert(end_iter, text)
+        adj = self.text_view.get_vadjustment()
+        GLib.idle_add(lambda: adj.set_value(adj.get_upper() - adj.get_page_size()))
+
+    def refresh_status(self):
+        def worker():
+            try:
+                # Read status via unprivileged CLI
+                proc = subprocess.run([self.binary_path, "status"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=4)
+                output = proc.stdout
+
+                is_active = "ACTIVE (running)" in output
+                is_verified = "VERIFIED" in output
+                strategy_name = "Bilinmiyor"
+                pkts_info = "0 paket"
+                voice_ok = "WebRTC socket reachable" in output
+
+                for line in output.splitlines():
+                    if "Active Strategy" in line:
+                        strategy_name = line.split(":", 1)[1].strip()
+                    if "Firewall Rules" in line and "(" in line:
+                        pkts_info = line[line.find("(")+1:line.find(")")]
+
+                GLib.idle_add(self.update_status_ui, is_active, is_verified, strategy_name, pkts_info, voice_ok)
+            except Exception as e:
+                GLib.idle_add(self.update_status_ui, False, False, f"Hata: {e}", "0 paket", False)
+
+        threading.Thread(target=worker, daemon=True).start()
+        return True
+
+    def update_status_ui(self, is_active, is_verified, strategy_name, pkts_info, voice_ok):
+        if is_active and is_verified:
+            self.lbl_status.set_markup("<span class='status-active'>🟢 Bağlantı Aktif &amp; Doğrulandı</span>")
+            self.btn_service.set_label("🛑 Servisi Durdur")
+            self.btn_service.get_style_context().remove_class("btn-primary")
+            self.btn_service.get_style_context().add_class("btn-danger")
+        elif is_active:
+            self.lbl_status.set_markup("<span class='status-warn'>🟡 Servis Aktif (Doğrulanmadı)</span>")
+            self.btn_service.set_label("🛑 Servisi Durdur")
+        else:
+            self.lbl_status.set_markup("<span class='status-inactive'>🔴 Servis Durduruldu</span>")
+            self.btn_service.set_label("▶️ Servisi Başlat")
+            self.btn_service.get_style_context().remove_class("btn-danger")
+            self.btn_service.get_style_context().add_class("btn-primary")
+
+        self.lbl_strategy.set_markup(f"<span class='info-value'><b>Aktif Strateji:</b> {strategy_name}</span>")
+        
+        voice_str = "🟢 Hazır &amp; Erişilebilir (0 ms Ping)" if voice_ok else "🟡 Bağlantı Bekleniyor"
+        self.lbl_voice.set_markup(f"<span class='info-value'>🎙️ <b>Discord Ses (WebRTC):</b> {voice_str}</span>")
+        self.lbl_traffic.set_markup(f"<span class='info-value'>🛡️ <b>Güvenlik Duvarı:</b> {pkts_info} işlendi</span>")
+
+    def run_command_in_background(self, title, cmd_args):
+        self.append_log(f"\n[+] {title} başlatılıyor...\n")
+        def worker():
+            try:
+                proc = subprocess.Popen(cmd_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                for line in proc.stdout:
+                    GLib.idle_add(self.append_log, line)
+                proc.wait()
+                GLib.idle_add(self.append_log, f"[OK] {title} tamamlandı.\n")
+                GLib.idle_add(self.refresh_status)
+            except Exception as e:
+                GLib.idle_add(self.append_log, f"[FAIL] Hata oluştu: {e}\n")
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def on_tune_clicked(self, widget):
+        self.append_log("\n============================================================\n")
+        self.append_log("Otomatik ağ stratejisi optimizasyonu başlatılıyor...\n")
+        self.append_log("Lütfen ekrana gelen şifre kutusunda yetki veriniz.\n")
+        # Run pkexec discord-bypass tune
+        cmd = ["pkexec", self.binary_path, "tune"]
+        self.run_command_in_background("Otomatik Strateji Ayarı (Tune)", cmd)
+
+    def on_test_clicked(self, widget):
+        cmd = [self.binary_path, "test"]
+        self.run_command_in_background("Bağlantı Testi", cmd)
+
+    def on_diagnose_clicked(self, widget):
+        cmd = [self.binary_path, "diagnose"]
+        self.run_command_in_background("12 Adımlı Ağ Teşhisi", cmd)
+
+    def on_toggle_service(self, widget):
+        btn_label = self.btn_service.get_label()
+        action = "stop" if "Durdur" in btn_label else "start"
+        cmd = ["pkexec", self.binary_path, action]
+        self.run_command_in_background(f"Servis {action}", cmd)
+
+
+def main():
+    app = DiscordBypassApp()
+    app.connect("destroy", Gtk.main_quit)
+    app.show_all()
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    main()

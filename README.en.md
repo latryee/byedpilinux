@@ -62,7 +62,25 @@ discord-bypass strategy list
 
 # View currently active strategy, parameters, and verification status
 discord-bypass strategy current
+```
 
+---
+
+### 3. Desktop Graphical Control Panel (GUI)
+
+For users who prefer a graphical interface, launch the Discord-themed Control Panel from your application menu (**Applications -> Internet -> Discord Bypass**) or run:
+
+```bash
+discord-bypass-gui
+```
+
+Features:
+- Live visual status indicator (Active, Verified, Strategy, Voice UDP readiness)
+- One-click **Auto-Tune** with graphical password prompt (`pkexec`)
+- Live connectivity and 12-point network diagnostic tests
+- Start / Stop service toggle
+
+```bash
 # Manually switch to a specific strategy (with verification & automatic rollback)
 sudo discord-bypass strategy set strategy_c
 

@@ -87,8 +87,10 @@ make -C "$(dirname "$0")" build
 echo -e "[INFO] Installing binaries to /usr/bin/ and /usr/local/bin/..."
 install -m 0755 bin/discord-bypass /usr/bin/discord-bypass
 install -m 0755 bin/discord-bypass-nfqws /usr/bin/discord-bypass-nfqws
+install -m 0755 desktop/discord-bypass-gui /usr/bin/discord-bypass-gui
 ln -sf /usr/bin/discord-bypass /usr/local/bin/discord-bypass 2>/dev/null || true
 ln -sf /usr/bin/discord-bypass-nfqws /usr/local/bin/discord-bypass-nfqws 2>/dev/null || true
+ln -sf /usr/bin/discord-bypass-gui /usr/local/bin/discord-bypass-gui 2>/dev/null || true
 
 # Install configurations
 echo -e "[INFO] Configuring /etc/discord-bypass/..."

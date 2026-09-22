@@ -36,7 +36,8 @@ chmod 0644 "$BUILD_DIR/usr/share/icons/hicolor/scalable/apps/discord-bypass.svg"
 # Copy binaries to FHS compliant /usr/bin/
 cp "$ROOT_DIR/bin/discord-bypass" "$BUILD_DIR/usr/bin/"
 cp "$ROOT_DIR/bin/discord-bypass-nfqws" "$BUILD_DIR/usr/bin/"
-chmod 0755 "$BUILD_DIR/usr/bin/discord-bypass" "$BUILD_DIR/usr/bin/discord-bypass-nfqws"
+cp "$ROOT_DIR/desktop/discord-bypass-gui" "$BUILD_DIR/usr/bin/"
+chmod 0755 "$BUILD_DIR/usr/bin/discord-bypass" "$BUILD_DIR/usr/bin/discord-bypass-nfqws" "$BUILD_DIR/usr/bin/discord-bypass-gui"
 
 # Copy configuration
 cp "$ROOT_DIR/config/config.toml" "$BUILD_DIR/etc/discord-bypass/"
